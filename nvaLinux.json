@@ -51,6 +51,8 @@
         }
     },
     "variables": {
+		"computeApiVersion": "2017-03-30",
+        "networkApiVersion": "2017-06-01",
         "apiVersion": "2015-06-15",
         "settingsTable": {
             "ubuntu": {
@@ -74,7 +76,7 @@
             "comments": "Create Vnet with one subnet",
             "type": "Microsoft.Network/virtualNetworks",
             "name": "[parameters('vnetName')]",
-            "apiVersion": "2016-03-30",
+            "apiVersion": "[variables('networkApiVersion')]",
             "location": "[resourceGroup().location]",
             "properties": {
                 "addressSpace": {
@@ -98,14 +100,14 @@
 			"comments": "Availability set for eventual NVA HA",
 			"type": "Microsoft.Compute/availabilitySets",
 			"name": "[variables('avSetName')]",
-			"apiVersion": "2016-03-30",
+            "apiVersion": "[variables('computeApiVersion')]",
 			"location": "[resourceGroup().location]"
 		},
         {
             "comments": "Deploy Linux VM as Virtual Network Appliance",
             "type": "Microsoft.Compute/virtualMachines",
             "name": "[parameters('vmName')]",
-            "apiVersion": "2015-06-15",
+            "apiVersion": "[variables('computeApiVersion')]",
             "location": "[resourceGroup().location]",
             "properties": {
 				"availabilitySet": {
@@ -162,7 +164,7 @@
             "comments": "Public IP address",
             "type": "Microsoft.Network/publicIPAddresses",
             "name": "[variables('pipName')]",
-            "apiVersion": "2016-03-30",
+            "apiVersion": "[variables('networkApiVersion')]",
             "location": "[resourceGroup().location]",
             "properties": {
                 "publicIPAllocationMethod": "Dynamic",
@@ -175,7 +177,7 @@
 			"comments": "NIC created with dynamic IP addresses",
             "type": "Microsoft.Network/networkInterfaces",
             "name": "[variables('nicName')]",
-            "apiVersion": "2016-03-30",
+            "apiVersion": "[variables('networkApiVersion')]",
             "location": "[resourceGroup().location]",
             "properties": {
                 "ipConfigurations": [
@@ -206,7 +208,7 @@
         {
             "type": "Microsoft.Compute/virtualMachines/extensions",
             "name": "[concat(parameters('vmName'), '/installcustomscript')]",
-            "apiVersion": "2015-05-01-preview",
+            "apiVersion": "[variables('computeApiVersion')]",
             "location": "[resourceGroup().location]",
             "properties": {
                 "publisher": "Microsoft.Azure.Extensions",
