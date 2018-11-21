@@ -58,7 +58,7 @@
             "ubuntu": {
                 "product": "UbuntuServer",
                 "publisher": "Canonical",
-                "sku": "18.04.0-LTS",
+                "sku": "18.04-LTS",
                 "vmSize": "[parameters('vmSize')]"
             }
         },
@@ -125,9 +125,9 @@
                 },
                 "storageProfile": {
                     "imageReference": {
-                        "publisher": "Canonical",
-                        "offer": "UbuntuServer",
-                        "sku": "18.04.0-LTS",
+                        "publisher": "[variables('settingsTable').ubuntu.publisher]",
+                        "offer": "variables('settingsTable').ubuntu.offer",
+                        "sku": "variables('settingsTable').ubuntu.sku",
                         "version": "latest"
                     },
                     "osDisk": {
