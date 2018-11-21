@@ -18,10 +18,6 @@
             "defaultValue": "192.168.100.0/26",
             "type": "string"
         },
-        "storageAccountName": {
-            "defaultValue": "put here an unique name for your storage account",
-            "type": "string"
-        },
         "vmType": {
             "defaultValue": "ubuntu",
             "type": "string",
@@ -68,7 +64,10 @@
         "avSetName": "[concat(parameters('vmName'),'-avset')]",
         "pipName": "[concat(parameters('vmName'),'-pip')]",
         "nicName": "[concat(parameters('vmName'),'-nic')]",
-        "ipConfigName": "[concat(variables('nicName'),'-ipConfig')]"
+        "ipConfigName": "[concat(variables('nicName'),'-ipConfig')]",
+		"diskName": "[concat(parameters('vmName'),'-osDisk')]",
+		"diskType": "Standard_LRS",
+		"osDiskSize": 32
     },
     "resources": [
         {
@@ -117,19 +116,21 @@
                 },
                 "storageProfile": {
                     "imageReference": {
-                        "publisher": "[variables('settings')['publisher']]",
-                        "offer": "[variables('settings')['product']]",
-                        "sku": "[variables('settings')['sku']]",
+                        "publisher": "Canonical",
+                        "offer": "UbuntuServer",
+                        "sku": "16.04.0-LTS",
                         "version": "latest"
                     },
                     "osDisk": {
-                        "name": "[concat(parameters('vmName'), '-disk')]",
+                        "osType": "Linux",
+                        "caching": "ReadWrite",
+                        "name": "[variables('diskName')]",
+                        "diskSizeGb": "[variables('osDiskSize')]",
                         "createOption": "FromImage",
-                        "vhd": {
-                            "uri": "[concat('http', '://', parameters('storageAccountName'), '.blob.core.windows.net', concat('/vhds/', parameters('vmName'), '-disk.vhd'))]"
+                        "managedDisk": {
+                            "storageAccountType": "[variables('diskType')]"
+                        }
                         },
-                        "caching": "ReadWrite"
-                    },
                     "dataDisks": []
                 },
                 "osProfile": {
