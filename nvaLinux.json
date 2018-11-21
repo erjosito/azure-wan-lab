@@ -75,7 +75,7 @@
         "settings": "[variables('settingsTable')[parameters('vmType')]]",
         "avSetName": "[concat(parameters('vmName'),'-avset')]",
         "pipName": "[concat(parameters('vmName'),'-pip')]",
-        "nsgName": "[concat(parameters('vmName'),'-nic')]"
+        "nicName": "[concat(parameters('vmName'),'-nic')]"
     },
     "resources": [
         {
