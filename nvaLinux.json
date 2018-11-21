@@ -27,10 +27,6 @@
             "type": "string",
             "allowedValues": ["ubuntu"]
         },
-        "vmCount": {
-            "defaultValue": 1,
-            "type": "int"
-        },
         "vmName": {
             "defaultValue": "myNva",
             "type": "string"
@@ -68,7 +64,6 @@
     },
     "variables": {
         "apiVersion": "2015-06-15",
-        "nic0Template": "[uri(deployment().properties.templateLink.uri, 'nic_NSG_noSLB_PIP_dynamic.json')]",
         "settingsTable": {
             "ubuntu": {
                 "product": "UbuntuServer",
@@ -78,7 +73,9 @@
             }
         },
         "settings": "[variables('settingsTable')[parameters('vmType')]]",
-        "avSetName": "[concat(parameters('vmName'),'AvSet')]"
+        "avSetName": "[concat(parameters('vmName'),'-avset')]",
+        "pipName": "[concat(parameters('vmName'),'-pip')]",
+        "nsgName": "[concat(parameters('vmName'),'-nic')]"
     },
     "resources": [
         {
@@ -115,7 +112,7 @@
         {
             "comments": "Deploy Linux VM as Virtual Network Appliance",
             "type": "Microsoft.Compute/virtualMachines",
-            "name": "[concat(parameters('vmName'), '-', copyIndex(1))]",
+            "name": "[parameters('vmName')]",
             "apiVersion": "2015-06-15",
             "location": "[resourceGroup().location]",
             "properties": {
@@ -133,17 +130,17 @@
                         "version": "latest"
                     },
                     "osDisk": {
-                        "name": "[concat(parameters('vmName'), '-', copyIndex(1),'-disk')]",
+                        "name": "[concat(parameters('vmName'), '-disk')]",
                         "createOption": "FromImage",
                         "vhd": {
-                            "uri": "[concat('http', '://', parameters('storageAccountName'), '.blob.core.windows.net', concat('/vhds/', parameters('vmName'), '-', copyIndex(1),'-disk.vhd'))]"
+                            "uri": "[concat('http', '://', parameters('storageAccountName'), '.blob.core.windows.net', concat('/vhds/', parameters('vmName'), '-disk.vhd'))]"
                         },
                         "caching": "ReadWrite"
                     },
                     "dataDisks": []
                 },
                 "osProfile": {
-                    "computerName": "[concat(parameters('vmName'), '-', copyIndex(1))]",
+                    "computerName": "[parameters('vmName')]",
                     "adminUsername": "[parameters('vmUsr')]",
                     "linuxConfiguration": {
                         "disablePasswordAuthentication": false
@@ -154,7 +151,7 @@
                 "networkProfile": {
                     "networkInterfaces": [
                         {
-                            "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(parameters('vmName'), '-', copyIndex(1), '-nic0'))]",
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', parameters('nicName'))]",
                             "properties": {
                                 "primary": true
                             }
@@ -163,44 +160,58 @@
                 }
             },
             "resources": [],
-            "copy": {
-                "name": "[parameters('vmName')]",
-                "count": "[parameters('vmCount')]"
-            },
             "dependsOn": [
-                "[concat(parameters('vmName'), '-nic0')]"
+                "[variables('nicName')]"
             ]
         },
-		{
-            "comments": "Create eth0",
-			"name": "[concat(parameters('vmName'), '-', copyIndex(1), '-nic0')]",
-			"type": "Microsoft.Resources/deployments",
-			"apiVersion": "2016-06-01",
-			"properties": {
-				"mode": "Incremental",
-				"templateLink": {
-					"uri": "[variables('nic0Template')]",
-					"contentVersion": "1.0.0.0"
-				},
-				"parameters":  {
-                    "nicName": {"value": "[concat(parameters('vmName'), '-', copyIndex(1), '-nic0')]"},
-                    "vnetName": { "value": "[parameters('vnetName')]" },
-                    "subnetName": { "value": "[parameters('subnetName')]"},
-                    "pipSku": { "value": "[parameters('pipSku')]"},
-                    "pipName": { "value": "[concat(parameters('pipName'), '-', copyIndex(1))]" }
-                }
+        {
+            "comments": "Public IP address",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[variables('pipName')]",
+            "apiVersion": "2016-03-30",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "publicIPAllocationMethod": "Dynamic",
+                "idleTimeoutInMinutes": 4
             },
+            "resources": [],
+            "dependsOn": []
+        },
+        {
+			"comments": "NIC created with dynamic IP addresses",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('nicName')]",
+            "apiVersion": "2016-03-30",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "[variables('ipConfigName')]",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('pipName'))]"
+                            },
+                            "subnet": {
+                                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', parameters('vnetName')), '/subnets/', parameters('subnetName'))]"
+                            }
+                        }
+                    }
+                ],
+                "dnsSettings": {
+                    "dnsServers": []
+                },
+                "enableIPForwarding": false
+            },
+            "resources": [],
             "dependsOn": [
+                "[parameters('pipName')]",
                 "[parameters('vnetName')]"
-            ],
-            "copy": {
-                "name": "[concat(parameters('vmName'), '-nic0')]",
-                "count": "[parameters('vmCount')]"
-            }
+            ]
         },
         {
             "type": "Microsoft.Compute/virtualMachines/extensions",
-            "name": "[concat(parameters('vmName'), '-', copyIndex(1), '/installcustomscript')]",
+            "name": "[concat(parameters('vmName'), '/installcustomscript')]",
             "apiVersion": "2015-05-01-preview",
             "location": "[resourceGroup().location]",
             "properties": {
@@ -217,11 +228,13 @@
             },
             "dependsOn": [
                 "[parameters('vmName')]"
-            ],
-            "copy": {
-                "name": "[concat(parameters('vmName'), '-script')]",
-                "count": "[parameters('vmCount')]"
-            }
+            ]
         }
-    ]
+    ],
+    "outputs": {
+        "ip_address": {
+            "type": "string",
+            "value": "[reference(variables('pipName')).ipAddress]"
+        }        
+    }
 }
