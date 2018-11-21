@@ -237,7 +237,7 @@
     "outputs": {
         "public_ip_address": {
             "type": "string",
-            "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', variables('pipName'), '2017-11-01').ipAddress]"
+            "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', variables('pipName')), '2017-11-01').ipAddress]"
         },
         "private_ip_address": {
             "type": "string",
