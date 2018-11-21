@@ -56,10 +56,9 @@
         "apiVersion": "2015-06-15",
         "settingsTable": {
             "ubuntu": {
-                "offer": "UbuntuServer",
                 "publisher": "Canonical",
-                "sku": "18.04-LTS",
-                "vmSize": "[parameters('vmSize')]"
+                "offer": "UbuntuServer",
+                "sku": "18.04-LTS"
             }
         },
         "settings": "[variables('settingsTable')[parameters('vmType')]]",
