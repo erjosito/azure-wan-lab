@@ -21,5 +21,5 @@ sudo apt-get install quagga -y
 # Option 2: Sample files
 sudo cp /usr/share/doc/quagga/examples/zebra.conf.sample /etc/quagga/zebra.conf
 sudo cp /usr/share/doc/quagga/examples/bgpd.conf.sample /etc/quagga/bgpd.conf
-sudo systemctl enable zebra
-sudo systemctl start zebra
+# sudo systemctl enable zebra
+# sudo systemctl start zebra

@@ -43,6 +43,12 @@
             "metadata": {
                 "description": "The bgp asn number of a vpnsite."
             }
+        },
+        "nvaPwd": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Password to be configured in the NVA (user is lab-user)"
+            }
         }
     },
     "variables": {
@@ -65,6 +71,7 @@
 					"contentVersion": "1.0.0.0"
 				},
 				"parameters":  {
+                    "vmPwd": {"value": "[parameters('nvaPwd')]"}
                 }
             },
             "dependsOn": [
@@ -102,11 +109,11 @@
             ],
             "properties": {
                 "addressSpace": {
-                    "addressPrefixes": "[parameters('vpnsiteAddressspaceList')]"
+                    "addressPrefixes": "[parameters('sitePrefix')]"
                 },               
                 "bgpProperties": {
-                    "asn":  "[parameters('vpnsiteBgpAsn')]",
-                    "bgpPeeringAddress": "[reference('<name-of-deployment>').outputs.<property-name>.value]",
+                    "asn":  "[parameters('siteAsn')]",
+                    "bgpPeeringAddress": "[reference('branchNva').outputs.private_ip_address.value]",
                     "peerWeight": 0
                 },
                 "deviceProperties": {
