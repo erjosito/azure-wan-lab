@@ -233,25 +233,26 @@
             ]
         },
         {
-            "apiVersion": "2017-05-10",
+            "comments": "Nested template to wait for VM creation before fetching the allocated public IP",
             "name": "fetchIpAddress",
+            "apiVersion": "2017-05-10",
             "type": "Microsoft.Resources/deployments",
-            "dependsOn": [
-                "[parameters('vmName')]"
-            ],
             "properties": {
                 "mode": "Incremental",
                 "templateLink": {
-                "contentVersion": "1.0.0.0",
+                    "contentVersion": "1.0.0.0",
                     "uri": "[uri(deployment().properties.templateLink.uri, 'fetchIpAddress.json')]"
                 },
                 "parameters": {
                     "publicIPAddressId": {
-                        "value": "[resourceId('Microsoft.Network/publicIpAddresses', variables('pipName'))]"
+                        "value": "[resourceId('Microsoft.Network/publicIPAddresses', variables('pipName'))]"
                     }
                 }
-            }
-        },
+            },
+            "dependsOn": [
+                "[parameters('vmName')]"
+            ]
+        }
     ],
     "outputs": {
         "public_ip_address": {
