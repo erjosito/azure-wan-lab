@@ -101,7 +101,14 @@
 			"type": "Microsoft.Compute/availabilitySets",
 			"name": "[variables('avSetName')]",
             "apiVersion": "[variables('computeApiVersion')]",
-			"location": "[resourceGroup().location]"
+			"location": "[resourceGroup().location]",
+			"properties": {
+				"platformUpdateDomainCount": 2,
+				"platformFaultDomainCount": 2
+			},
+			"sku": {
+				"name": "Aligned"
+			}
 		},
         {
             "comments": "Deploy Linux VM as Virtual Network Appliance",
