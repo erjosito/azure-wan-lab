@@ -184,7 +184,6 @@
 				},
 				"parameters":  {
                     "nicName": {"value": "[concat(parameters('vmName'), '-', copyIndex(1), '-nic0')]"},
-                    "ipAddress": { "value": "[concat(parameters('ip0'), copyIndex(1))]" },                    
                     "vnetName": { "value": "[parameters('vnetName')]" },
                     "subnetName": { "value": "[parameters('subnetName')]"},
                     "pipSku": { "value": "[parameters('pipSku')]"},
