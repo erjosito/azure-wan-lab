@@ -2,10 +2,6 @@
     "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
-        "apiVersion": {
-            "defaultValue": "2015-06-15",
-            "type": "string"
-        },
         "vnetName": {
             "defaultValue": "myVnet",
             "type": "string"
@@ -71,6 +67,7 @@
         }
     },
     "variables": {
+        "apiVersion": "2015-06-15",
         "nic0Template": "[uri(deployment().properties.templateLink.uri, 'nic_NSG_noSLB_PIP_dynamic.json')]",
         "settingsTable": {
             "ubuntu": {
@@ -195,6 +192,7 @@
                 }
             },
             "dependsOn": [
+                "[parameters('vnetName')]"
             ],
             "copy": {
                 "name": "[concat(parameters('vmName'), '-nic0')]",
