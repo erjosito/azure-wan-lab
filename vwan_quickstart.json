@@ -23,6 +23,13 @@
                 "description": "The hub address prefix. This address prefix will be used as the address prefix for the hub vnet"
             }
         },
+        "hubLocation": {
+            "type": "string",
+            "defaultValue": "westeurope",
+            "metadata": {
+                "description": "The hub location"
+            }
+        },
         "siteName": {
             "type": "string",
             "defaultValue": "SampleVpnSite",
@@ -39,6 +46,7 @@
         }
     },
     "variables": {
+        "networkApiVersion": "2018-08-01",
         "nvaUri": "uri(deployment().properties.templateLink.uri 'nvaLinux.json')",
         "enableBgp": "true",
         "connectionName": "[concat(parameters('hubName'), '-connection')]",
@@ -47,7 +55,7 @@
     "resources": [
 		{
 			"comments": "Simulate a branch with a VNET plus an NVA",
-			"name": "branchnva",
+			"name": "branchNva",
             "type": "Microsoft.Resources/deployments",
 			"apiVersion": "2016-06-01",
 			"properties": {
@@ -57,46 +65,28 @@
 					"contentVersion": "1.0.0.0"
 				},
 				"parameters":  {
-                    "vnetName": { "value": "[concat(parameters('vnetNamePrefix'), copyIndex(1))]" },
-                    "vnetOctets12": { "value": "[concat(parameters('vnetOctet1'), copyIndex(1), '.')]" },
-                    "subnetNamePrefix": { "value": "[concat(parameters('vnetNamePrefix'), copyIndex(1), 'Subnet')]"},
-                    "gwName": { "value": "[concat(parameters('vnetNamePrefix'), copyIndex(1), 'GW')]" },
-                    "gwPIPName": { "value": "[concat(parameters('vnetNamePrefix'), copyIndex(1), 'gwPip')]" },
-                    "createGw": { "value": "[parameters('createGw')]"},
-                    "enableBgp": { "value": "[parameters('enableBgp')]"},
-                    "createVm": { "value": "[parameters('createVm')]"},
-                    "vmType": { "value": "[parameters('vmType')]"},
-                    "vmSize": { "value": "[parameters('vmSize')]"},
-                    "createPip": { "value": "[parameters('createPip')]"},
-                    "adminUsername": { "value": "[parameters('adminUsername')]"},
-                    "adminPassword": { "value": "[parameters('adminPassword')]"}
                 }
             },
             "dependsOn": [
-                "[parameters('storageAccountName')]"
-            ],
-            "copy": {
-                "name": "vnetCopy",
-                "count": "[parameters('vnetCount')]"
-            }
+            ]
         },
         {
             "type": "Microsoft.Network/virtualWans",
-            "name": "[parameters('wanname')]",
-            "apiVersion": "2018-08-01",
-            "location": "[parameters('location')]",
+            "name": "[parameters('wanName')]",
+            "apiVersion": "[variables('networkApiVersion')]",
+            "location": "[resourceGroup().location]",
             "properties": { }
         },
         {
             "type": "Microsoft.Network/virtualHubs",
             "name": "[parameters('hubname')]",
-            "apiVersion": "2018-08-01",
-            "location": "[parameters('location')]",
+            "apiVersion": "[variables('networkApiVersion')]",
+            "location": "[parameters('hubLocation')]",
             "dependsOn": [
-                "[concat('Microsoft.Network/virtualWans/', parameters('wanname'))]"
+                "[concat('Microsoft.Network/virtualWans/', parameters('wanName'))]"
             ],
             "properties": {
-                "addressPrefix": "[parameters('addressPrefix')]",
+                "addressPrefix": "[parameters('hubPrefix')]",
                 "virtualWan": {
                     "id": "[resourceId('Microsoft.Network/virtualWans',parameters('wanname'))]"
                 }

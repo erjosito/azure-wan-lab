@@ -226,7 +226,7 @@
                     "fileUris": [
                         "[parameters('scriptUri')]"
                     ],
-                    "commandToExecute": "[concat(parameters('scriptCmd'), ' ', parameters('vmPwd'))]"
+                    "commandToExecute": "[parameters('scriptCmd')]"
                 }
             },
             "dependsOn": [
