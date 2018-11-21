@@ -31,13 +31,13 @@
             "defaultValue": "lab-user",
             "type": "string"
         },
-        "vmSize": {
-            "defaultValue": "Standard_B1s",
-            "type": "string"
-        },
         "vmPwd": {
             "defaultValue": null,
             "type": "securestring"
+        },
+        "vmSize": {
+            "defaultValue": "Standard_B1s",
+            "type": "string"
         },
         "scriptUri": {
             "defaultValue": "[uri(deployment().properties.templateLink.uri, 'linuxNVAconfig.sh')]",
@@ -58,7 +58,7 @@
             "ubuntu": {
                 "product": "UbuntuServer",
                 "publisher": "Canonical",
-                "sku": "16.04.0-LTS",
+                "sku": "18.04.0-LTS",
                 "vmSize": "[parameters('vmSize')]"
             }
         },
@@ -226,7 +226,7 @@
                     "fileUris": [
                         "[parameters('scriptUri')]"
                     ],
-                    "commandToExecute": "[parameters('scriptCmd')]"
+                    "commandToExecute": "[concat(parameters('scriptCmd'), ' ', parameters('vmPwd')]"
                 }
             },
             "dependsOn": [
@@ -237,7 +237,7 @@
     "outputs": {
         "public_ip_address": {
             "type": "string",
-            "value": "[reference(variables('pipName')).ipAddress]"
+            "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', variables('pipName'), '2017-11-01').ipAddress]"
         },
         "private_ip_address": {
             "type": "string",
