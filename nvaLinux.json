@@ -120,7 +120,7 @@
 					"id": "[resourceId('Microsoft.Compute/availabilitySets', variables('avSetName'))]"
 				},
                 "hardwareProfile": {
-                    "vmSize": "[variables('settings')['vmSize']]"
+                    "vmSize": "[parameters('vmSize')]"
                 },
                 "storageProfile": {
                     "imageReference": {
