@@ -125,8 +125,8 @@
                 "storageProfile": {
                     "imageReference": {
                         "publisher": "[variables('settingsTable').ubuntu.publisher]",
-                        "offer": "variables('settingsTable').ubuntu.offer",
-                        "sku": "variables('settingsTable').ubuntu.sku",
+                        "offer": "[variables('settingsTable').ubuntu.offer]",
+                        "sku": "[variables('settingsTable').ubuntu.sku]",
                         "version": "latest"
                     },
                     "osDisk": {
