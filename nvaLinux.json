@@ -144,7 +144,7 @@
                 "networkProfile": {
                     "networkInterfaces": [
                         {
-                            "id": "[resourceId('Microsoft.Network/networkInterfaces', parameters('nicName'))]",
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]",
                             "properties": {
                                 "primary": true
                             }
