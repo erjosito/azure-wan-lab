@@ -235,9 +235,13 @@
         }
     ],
     "outputs": {
-        "ip_address": {
+        "public_ip_address": {
             "type": "string",
             "value": "[reference(variables('pipName')).ipAddress]"
+        },
+        "private_ip_address": {
+            "type": "string",
+            "value": "[reference(variables('nicName')).ipConfigurations[0].privateIpAddress"
         }        
     }
 }
