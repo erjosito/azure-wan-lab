@@ -28,11 +28,11 @@
             "type": "string"
         },
         "vmUsr": {
-            "defaultValue": "myadmin",
+            "defaultValue": "lab-user",
             "type": "string"
         },
         "vmSize": {
-            "defaultValue": "Standard_B2ms",
+            "defaultValue": "Standard_B1s",
             "type": "string"
         },
         "vmPwd": {
@@ -241,7 +241,7 @@
         },
         "private_ip_address": {
             "type": "string",
-            "value": "[reference(variables('nicName')).ipConfigurations[0].privateIpAddress"
+            "value": "[reference(variables('nicName')).ipConfigurations[0].privateIpAddress]"
         }        
     }
 }
