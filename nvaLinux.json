@@ -231,12 +231,32 @@
             "dependsOn": [
                 "[parameters('vmName')]"
             ]
-        }
+        },
+        {
+            "apiVersion": "2017-05-10",
+            "name": "fetchIpAddress",
+            "type": "Microsoft.Resources/deployments",
+            "dependsOn": [
+                "[parameters('vmName')]"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                "contentVersion": "1.0.0.0",
+                    "uri": "[uri(deployment().properties.templateLink.uri, 'fetchIpAddress.json')]"
+                },
+                "parameters": {
+                    "publicIPAddressId": {
+                        "value": "[resourceId('Microsoft.Network/publicIpAddresses', variables('pipName'))]"
+                    }
+                }
+            }
+        },
     ],
     "outputs": {
         "public_ip_address": {
             "type": "string",
-            "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', variables('pipName')), '2017-11-01').ipAddress]"
+            "value": "[reference('fetchIpAddress').outputs.ipAddress.value]"
         },
         "private_ip_address": {
             "type": "string",
