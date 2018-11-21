@@ -1,0 +1,209 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "vwan_name": {
+            "defaultValue": "myvwan",
+            "type": "string"
+        },
+        "hub_name": {
+            "defaultValue": "hub1",
+            "type": "string"
+        },
+        "hub_prefix": {
+            "defaultValue": "192.168.100.0/24",
+            "type": "string"
+        },
+        "site_name": {
+            "defaultValue": "branch1",
+            "type": "string"
+        },
+        "site_prefix": {
+            "defaultValue": "192.168.101.0/24",
+            "type": "string"
+        },
+        "vpnGw_name": {
+            "defaultValue": "a709daf8a1bb4df4a1eaf67ba1e67a8f-westeurope-gw",
+            "type": "string"
+        },
+        "vpnConnection_name": {
+            "defaultValue": "Connection-branch2",
+            "type": "string"
+        },
+        "vnet_name": {
+            "defaultValue": "myvnet",
+            "type": "string"
+        },
+        "vnetPeering_name": {
+            "defaultValue": "RemoteVnetToHubPeering_9036a8a3-c97b-430c-88d0-3e92e51f7d3a",
+            "type": "string"
+        }
+    },
+    "variables": {
+        "networkApiVersion": "2018-08-01"
+    },
+    "resources": [
+        {
+            "comments": "Generalized from resource: '/subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwantest/providers/Microsoft.Network/virtualHubs/myhub2'.",
+            "type": "Microsoft.Network/virtualHubs",
+            "name": "[parameters('hub_name')]",
+            "apiVersion": "[variables('networkApiVersion)]",
+            "location": "[resourceGroup().location]",
+            "scale": null,
+            "properties": {
+                "provisioningState": "Succeeded",
+                "virtualNetworkConnections": [],
+                "addressPrefix": "[parameters('hub_prefix')]",
+                "routeTable": {
+                    "routes": []
+                },
+                "virtualWan": {
+                    "id": "[resourceId('Microsoft.Network/virtualWans', parameters('vwan_name'))]"
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualWans', parameters('vwan_name'))]",
+            ]
+        },
+        {
+            "comments": "Generalized from resource: '/subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwantest/providers/Microsoft.Network/virtualWans/myvwan'.",
+            "type": "Microsoft.Network/virtualWans",
+            "name": "[parameters('vwan_name')]",
+            "apiVersion": "2018-08-01",
+            "location": "westeurope",
+            "scale": null,
+            "properties": {
+                "provisioningState": "Succeeded",
+                "disableVpnEncryption": false,
+                "allowBranchToBranchTraffic": true,
+                "allowVnetToVnetTraffic": false,
+                "office365LocalBreakoutCategory": "None",
+                "p2SVpnServerConfigurations": []
+            },
+            "dependsOn": []
+        },
+        {
+            "comments": "Generalized from resource: '/subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwantest/providers/Microsoft.Network/vpnGateways/b932e2f4360b413fae7e0bda851069b7-northeurope-gw'.",
+            "type": "Microsoft.Network/vpnGateways",
+            "name": "[parameters('vpnGateway_name')]",
+            "apiVersion": "2018-08-01",
+            "location": "northeurope",
+            "scale": null,
+            "properties": {
+                "provisioningState": "Succeeded",
+                "connections": [
+                    {
+                        "name": "[concat('Connection-', parameters('site_name'))]",
+                        "properties": {
+                            "provisioningState": "Succeeded",
+                            "remoteVpnSite": {
+                                "id": "[resourceId('Microsoft.Network/vpnSites', parameters('vpnSites_branch2_name'))]"
+                            },
+                            "connectionBandwidth": 10,
+                            "ipsecPolicies": [],
+                            "vpnConnectionProtocolType": "IKEv2",
+                            "sharedKey": "3082020F06092A864886F70D010703A0820200308201FC020100318201C0308201BC0201003081A330818B310B3009060355040613025553311330110603550408130A57617368696E67746F6E3110300E060355040713075265646D6F6E64311E301C060355040A13154D6963726F736F667420436F72706F726174696F6E31153013060355040B130C4D6963726F736F6674204954311E301C060355040313154D6963726F736F667420495420544C53204341203502132D0000F50B65B48ADA7B23C64000000000F50B300D06092A864886F70D01010105000482010038EAF92C99E12F5508C9958276C635EBDEAF6989639EBBA0D93CB18241A5AE847798C9297BBA06FEB9E69AA47336041E8661C10A48666AAB34900730C07CB2C4ED6F110467F435B5ED85518A5D5A48A3B71C47FF13BF441DCC6763EA6B0836999CB43E1027EA8C5B81FFCB5825098991B45A2F6378F7A3DA49508BB72052ACDF26C95CDAEA0903951E9AD9A14C78D0DBC7E6589697C1D548F2353C17ACDF40BFC15A40804AF0311728505C518FFCCBC57EBD88EC336B27948B3467AECFBED6F640D2127D29931BB148BDEAB945CAF7D043C8676C0F369937EC63ACA09FBBEBF637116C4464A33E2A1DA73983AF2F357D4D026843A1D322BEAE7E83B512FA036A303306092A864886F70D010701301406082A864886F70D0307040810A093AEE033301380109C1191455770A11A84420FCF753584B0",
+                            "enableBgp": true,
+                            "enableRateLimiting": false,
+                            "enableInternetSecurity": false
+                        }
+                    }
+                ],
+                "virtualHub": {
+                    "id": "[resourceId('Microsoft.Network/virtualHubs', parameters('hub_name'))]"
+                },
+                "bgpSettings": {
+                    "asn": 65515,
+                    "peerWeight": 0
+                },
+                "vpnGatewayScaleUnit": 1
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/vpnSites', parameters('site_name'))]",
+                "[resourceId('Microsoft.Network/virtualHubs', parameters('hub_name'))]"
+            ]
+        },
+        {
+            "comments": "Generalized from resource: '/subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwantest/providers/Microsoft.Network/vpnSites/branch1'.",
+            "type": "Microsoft.Network/vpnSites",
+            "name": "[parameters('site_name')]",
+            "apiVersion": "2018-08-01",
+            "location": "westeurope",
+            "scale": null,
+            "properties": {
+                "provisioningState": "Succeeded",
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[parameters('site_prefix')]"
+                    ]
+                },
+                "bgpProperties": {
+                    "asn": 65101,
+                    "bgpPeeringAddress": "172.21.1.254",
+                    "peerWeight": 0
+                },
+                "deviceProperties": {
+                    "linkSpeedInMbps": 0
+                },
+                "ipAddress": "51.144.177.30",
+                "virtualWan": {
+                    "id": "[resourceId('Microsoft.Network/virtualWans', parameters('vwan_name'))]"
+                },
+                "isSecuritySite": false
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualWans', parameters('vwan_name'))]"
+            ]
+        },
+        {
+            "comments": "Generalized from resource: '/subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwantest/providers/Microsoft.Network/virtualNetworks/feVnet/virtualNetworkPeerings/RemoteVnetToHubPeering_9036a8a3-c97b-430c-88d0-3e92e51f7d3a'.",
+            "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+            "name": "[concat(parameters('vnet_name'), '/', parameters('vnetPeering_name'))]",
+            "apiVersion": "[variables(networkApiversion')]",
+            "scale": null,
+            "properties": {
+                "provisioningState": "Succeeded",
+                "peeringState": "Connected",
+                "remoteVirtualNetwork": {
+                    "id": "[parameters('vnetPeering_id')]"
+                },
+                "allowVirtualNetworkAccess": true,
+                "allowForwardedTraffic": false,
+                "allowGatewayTransit": false,
+                "useRemoteGateways": true,
+                "remoteAddressSpace": {
+                    "addressPrefixes": [
+                        "172.21.101.0/24"
+                    ]
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', parameters('vnet_name'))]"
+            ]
+        },
+        {
+            "comments": "Generalized from resource: '/subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwantest/providers/Microsoft.Network/vpnGateways/b932e2f4360b413fae7e0bda851069b7-northeurope-gw/vpnConnections/Connection-branch2'.",
+            "type": "Microsoft.Network/vpnGateways/vpnConnections",
+            "name": "[concat(parameters('vpnGateway_name'), '/', parameters('vpnConnection_name'))]",
+            "apiVersion": "[variables('networkApiVersion')]",
+            "scale": null,
+            "properties": {
+                "provisioningState": "Succeeded",
+                "remoteVpnSite": {
+                    "id": "[resourceId('Microsoft.Network/vpnSites', parameters('site_name'))]"
+                },
+                "connectionBandwidth": 10,
+                "ipsecPolicies": [],
+                "vpnConnectionProtocolType": "IKEv2",
+                "sharedKey": "3082020F06092A864886F70D010703A0820200308201FC020100318201C0308201BC0201003081A330818B310B3009060355040613025553311330110603550408130A57617368696E67746F6E3110300E060355040713075265646D6F6E64311E301C060355040A13154D6963726F736F667420436F72706F726174696F6E31153013060355040B130C4D6963726F736F6674204954311E301C060355040313154D6963726F736F667420495420544C53204341203502132D0000F50B65B48ADA7B23C64000000000F50B300D06092A864886F70D01010105000482010038EAF92C99E12F5508C9958276C635EBDEAF6989639EBBA0D93CB18241A5AE847798C9297BBA06FEB9E69AA47336041E8661C10A48666AAB34900730C07CB2C4ED6F110467F435B5ED85518A5D5A48A3B71C47FF13BF441DCC6763EA6B0836999CB43E1027EA8C5B81FFCB5825098991B45A2F6378F7A3DA49508BB72052ACDF26C95CDAEA0903951E9AD9A14C78D0DBC7E6589697C1D548F2353C17ACDF40BFC15A40804AF0311728505C518FFCCBC57EBD88EC336B27948B3467AECFBED6F640D2127D29931BB148BDEAB945CAF7D043C8676C0F369937EC63ACA09FBBEBF637116C4464A33E2A1DA73983AF2F357D4D026843A1D322BEAE7E83B512FA036A303306092A864886F70D010701301406082A864886F70D0307040810A093AEE033301380109C1191455770A11A84420FCF753584B0",
+                "enableBgp": true,
+                "enableRateLimiting": false,
+                "enableInternetSecurity": false
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/vpnGateways', parameters('vpnGateway_name'))]",
+                "[resourceId('Microsoft.Network/vpnSites', parameters('site_name'))]"
+            ]
+        }
+    ]
+}

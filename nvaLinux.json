@@ -1,0 +1,230 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "apiVersion": {
+            "defaultValue": "2015-06-15",
+            "type": "string"
+        },
+        "vnetName": {
+            "defaultValue": "myVnet",
+            "type": "string"
+        },
+        "vnetPrefix": {
+            "defaultValue": "192.168.100.0/24",
+            "type": "string"
+        },
+        "subnetName": {
+            "defaultValue": "subnet1",
+            "type": "string"
+        },
+        "subnetPrefix": {
+            "defaultValue": "192.168.100.0/26",
+            "type": "string"
+        },
+        "storageAccountName": {
+            "defaultValue": "put here an unique name for your storage account",
+            "type": "string"
+        },
+        "vmType": {
+            "defaultValue": "ubuntu",
+            "type": "string",
+            "allowedValues": ["ubuntu"]
+        },
+        "vmCount": {
+            "defaultValue": 1,
+            "type": "int"
+        },
+        "vmName": {
+            "defaultValue": "myNva",
+            "type": "string"
+        },
+        "vmUsr": {
+            "defaultValue": "myadmin",
+            "type": "string"
+        },
+        "vmSize": {
+            "defaultValue": "Standard_B2ms",
+            "type": "string"
+        },
+        "vmPwd": {
+            "defaultValue": null,
+            "type": "securestring"
+        },
+        "pipName": {
+            "defaultValue": "nva-pip",
+            "type": "string"
+        },
+        "pipSku": {
+            "defaultValue": "basic",
+            "type": "string"
+        },
+        "scriptUri": {
+            "defaultValue": "[uri(deployment().properties.templateLink.uri, 'linuxNVAconfig.sh')]",
+            "type": "string",
+            "metadata": { "description": "Script that will be executed" }            
+        },
+        "scriptCmd": {
+            "defaultValue": "sh linuxNVAconfig.sh",
+            "type": "string",
+            "metadata": { "description": "Command to run the script" }            
+        }
+    },
+    "variables": {
+        "nic0Template": "[uri(deployment().properties.templateLink.uri, 'nic_NSG_noSLB_PIP_dynamic.json')]",
+        "settingsTable": {
+            "ubuntu": {
+                "product": "UbuntuServer",
+                "publisher": "Canonical",
+                "sku": "16.04.0-LTS",
+                "vmSize": "[parameters('vmSize')]"
+            }
+        },
+        "settings": "[variables('settingsTable')[parameters('vmType')]]",
+        "avSetName": "[concat(parameters('vmName'),'AvSet')]"
+    },
+    "resources": [
+        {
+            "comments": "Create Vnet with one subnet",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[parameters('vnetName')]",
+            "apiVersion": "2016-03-30",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[parameters('vnetPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[parameters('subnetName')]",
+                        "properties": {
+                            "addressPrefix": "[parameters('subnetPrefix')]"
+                        }
+                    }
+                ]
+            },
+            "resources": [],
+            "dependsOn": []
+        },
+		{
+			"comments": "Availability set for eventual NVA HA",
+			"type": "Microsoft.Compute/availabilitySets",
+			"name": "[variables('avSetName')]",
+			"apiVersion": "2016-03-30",
+			"location": "[resourceGroup().location]"
+		},
+        {
+            "comments": "Deploy Linux VM as Virtual Network Appliance",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[concat(parameters('vmName'), '-', copyIndex(1))]",
+            "apiVersion": "2015-06-15",
+            "location": "[resourceGroup().location]",
+            "properties": {
+				"availabilitySet": {
+					"id": "[resourceId('Microsoft.Compute/availabilitySets', variables('avSetName'))]"
+				},
+                "hardwareProfile": {
+                    "vmSize": "[variables('settings')['vmSize']]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('settings')['publisher']]",
+                        "offer": "[variables('settings')['product']]",
+                        "sku": "[variables('settings')['sku']]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "[concat(parameters('vmName'), '-', copyIndex(1),'-disk')]",
+                        "createOption": "FromImage",
+                        "vhd": {
+                            "uri": "[concat('http', '://', parameters('storageAccountName'), '.blob.core.windows.net', concat('/vhds/', parameters('vmName'), '-', copyIndex(1),'-disk.vhd'))]"
+                        },
+                        "caching": "ReadWrite"
+                    },
+                    "dataDisks": []
+                },
+                "osProfile": {
+                    "computerName": "[concat(parameters('vmName'), '-', copyIndex(1))]",
+                    "adminUsername": "[parameters('vmUsr')]",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": false
+                    },
+                    "secrets": [],
+                    "adminPassword": "[parameters('vmPwd')]"
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(parameters('vmName'), '-', copyIndex(1), '-nic0'))]",
+                            "properties": {
+                                "primary": true
+                            }
+                        }
+                    ]
+                }
+            },
+            "resources": [],
+            "copy": {
+                "name": "[parameters('vmName')]",
+                "count": "[parameters('vmCount')]"
+            },
+            "dependsOn": [
+                "[concat(parameters('vmName'), '-nic0')]"
+            ]
+        },
+		{
+            "comments": "Create eth0",
+			"name": "[concat(parameters('vmName'), '-', copyIndex(1), '-nic0')]",
+			"type": "Microsoft.Resources/deployments",
+			"apiVersion": "2016-06-01",
+			"properties": {
+				"mode": "Incremental",
+				"templateLink": {
+					"uri": "[variables('nic0Template')]",
+					"contentVersion": "1.0.0.0"
+				},
+				"parameters":  {
+                    "nicName": {"value": "[concat(parameters('vmName'), '-', copyIndex(1), '-nic0')]"},
+                    "ipAddress": { "value": "[concat(parameters('ip0'), copyIndex(1))]" },                    
+                    "vnetName": { "value": "[parameters('vnetName')]" },
+                    "subnetName": { "value": "[parameters('subnetName')]"},
+                    "pipSku": { "value": "[parameters('pipSku')]"},
+                    "pipName": { "value": "[concat(parameters('pipName'), '-', copyIndex(1))]" }
+                }
+            },
+            "dependsOn": [
+            ],
+            "copy": {
+                "name": "[concat(parameters('vmName'), '-nic0')]",
+                "count": "[parameters('vmCount')]"
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(parameters('vmName'), '-', copyIndex(1), '/installcustomscript')]",
+            "apiVersion": "2015-05-01-preview",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "publisher": "Microsoft.Azure.Extensions",
+                "type": "CustomScript",
+                "typeHandlerVersion": "2.0",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "fileUris": [
+                        "[parameters('scriptUri')]"
+                    ],
+                    "commandToExecute": "[parameters('scriptCmd')]"
+                }
+            },
+            "dependsOn": [
+                "[parameters('vmName')]"
+            ],
+            "copy": {
+                "name": "[concat(parameters('vmName'), '-script')]",
+                "count": "[parameters('vmCount')]"
+            }
+        }
+    ]
+}
