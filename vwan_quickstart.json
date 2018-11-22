@@ -156,8 +156,8 @@
             "apiVersion": "[variables('networkApiVersion')]",
             "location": "[parameters('hubLocation')]",
             "dependsOn": [
-                "parameters('hubName')]",
-                "parameters('siteName')]"
+                "[parameters('hubName')]",
+                "[parameters('siteName')]"
             ],
             "properties": {
                 "connections": [
