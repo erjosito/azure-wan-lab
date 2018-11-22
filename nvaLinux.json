@@ -252,6 +252,27 @@
             "dependsOn": [
                 "[parameters('vmName')]"
             ]
+        },
+        {
+            "comments": "Nested template to wait for VM creation before fetching the allocated private IP of the NIC",
+            "name": "fetchNicIpAddress",
+            "apiVersion": "2017-05-10",
+            "type": "Microsoft.Resources/deployments",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "contentVersion": "1.0.0.0",
+                    "uri": "[uri(deployment().properties.templateLink.uri, 'fetchNicIpAddress.json')]"
+                },
+                "parameters": {
+                    "publicIPAddressId": {
+                        "value": "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
+                    }
+                }
+            },
+            "dependsOn": [
+                "[parameters('vmName')]"
+            ]
         }
     ],
     "outputs": {
@@ -261,7 +282,7 @@
         },
         "private_ip_address": {
             "type": "string",
-            "value": "[reference(variables('nicName')).ipConfigurations[0].privateIpAddress]"
+            "value": "[reference('fetchNicIpAddress').outputs.ipAddress.value]"
         }        
     }
 }

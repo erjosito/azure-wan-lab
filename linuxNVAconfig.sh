@@ -15,4 +15,17 @@ sudo systemctl enable bgpd
 sudo systemctl restart bgpd
 
 # Install StrongSwan
+# See https://github.com/Azure/Azure-vpn-config-samples/tree/master/StrongSwan/5.3.5
 sudo apt install strongswan -y
+sudo mv /etc/ipsec.conf /etc/ipsec.conf.bak
+sudo mv /etc/ipsec.secrets /etc/ipsec.secrets.bak
+sudo wget https://raw.githubusercontent.com/erjosito/azure-wan-lab/ipsec.conf -P /etc/
+sudo wget https://raw.githubusercontent.com/erjosito/azure-wan-lab/ipsec.secrets -P /etc/
+sudo wget https://raw.githubusercontent.com/erjosito/azure-wan-lab/ipsec-notify.sh -P /usr/local/sbin/
+sudo chmod 644 /etc/ipsec.conf
+sudo chmod 600 /etc/ipsec.secrets
+sudo apparmor_parser -R /etc/apparmor.d/usr.lib.ipsec.charon
+sudo apparmor_parser -R /etc/apparmor.d/usr.lib.ipsec.stroke
+sudo ln -s /etc/apparmor.d/usr.lib.ipsec.charon /etc/apparmor.d/disable/
+sudo ln -s /etc/apparmor.d/usr.lib.ipsec.stroke /etc/apparmor.d/disable/
+sudo ipsec restart
