@@ -250,7 +250,8 @@
                 }
             },
             "dependsOn": [
-                "[parameters('vmName')]"
+                "[parameters('vmName')]",
+                "[concat(parameters('vmName'), '/installcustomscript')]"
             ]
         },
         {
@@ -271,7 +272,8 @@
                 }
             },
             "dependsOn": [
-                "[parameters('vmName')]"
+                "[parameters('vmName')]",
+                "[concat(parameters('vmName'), '/installcustomscript')]"
             ]
         }
     ],

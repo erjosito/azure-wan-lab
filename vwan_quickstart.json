@@ -44,6 +44,14 @@
                 "description": "The bgp asn number of a vpnsite."
             }
         },
+        "nvaType": {
+            "type": "string",
+            "defaultValue": "linux",
+            "allowedValues": ["linux", "cisco_csr"],
+            "metadata": {
+                "description": "What type of appliance will be created to simulate an onprem device. Ubuntu (with Quagga+StrongSwan) and Cisco CSR 1000v supported."
+            }
+        },
         "nvaPwd": {
             "type": "securestring",
             "metadata": {
@@ -53,31 +61,45 @@
     },
     "variables": {
         "networkApiVersion": "2018-08-01",
-        "nvaUri": "uri(deployment().properties.templateLink.uri 'nvaLinux.json')",
+        "deploymentApiVersion": "2017-05-10",
+        "siteLocation": "[parameters('hubLocation')]",
         "enableBgp": "true",
-        "connectionName": "[concat(parameters('hubName'), '-connection')]",
-        "vpnGwName": "[concat(parameters('hubName'), '-vpnGw')]"
+        "vpnConnectionName": "[concat(parameters('hubName'), '-connection')]",
+        "vpnGwName": "[concat(parameters('hubName'), '-vpnGw')]",
+        "nvaSettings": {
+            "linux": {
+                "uri": "[uri(deployment().properties.templateLink.uri, 'nvaLinux.json')]",
+                "parameters": {
+                    "vmPwd": {"value": "[parameters('nvaPwd')]"}
+                }
+            },
+            "cisco_csr": {
+                "uri": "[uri(deployment().properties.templateLink.uri, 'nvaCSR1kv.json')]",
+                "parameters": {
+
+                }
+            }
+        }
     },
     "resources": [
 		{
 			"comments": "Simulate a branch with a VNET plus an NVA",
 			"name": "branchNva",
             "type": "Microsoft.Resources/deployments",
-			"apiVersion": "2016-06-01",
+			"apiVersion": "[variables('deploymentApiVersion')]",
 			"properties": {
 				"mode": "Incremental",
 				"templateLink": {
-					"uri": "[variables('nvaUri')]",
+					"uri": "[variables('nvaSettings')[parameters('nvaType')].uri]",
 					"contentVersion": "1.0.0.0"
 				},
-				"parameters":  {
-                    "vmPwd": {"value": "[parameters('nvaPwd')]"}
-                }
+				"parameters": "[variables('nvaSettings')[parameters('nvaType')].parameters]"
             },
             "dependsOn": [
             ]
         },
         {
+            "comments": "Create a Virtual WAN resource. Location is not important",
             "type": "Microsoft.Network/virtualWans",
             "name": "[parameters('wanName')]",
             "apiVersion": "[variables('networkApiVersion')]",
@@ -85,6 +107,7 @@
             "properties": { }
         },
         {
+            "comments": "Create a Virtual Hub. Typically one per Azure region",
             "type": "Microsoft.Network/virtualHubs",
             "name": "[parameters('hubname')]",
             "apiVersion": "[variables('networkApiVersion')]",
@@ -95,21 +118,22 @@
             "properties": {
                 "addressPrefix": "[parameters('hubPrefix')]",
                 "virtualWan": {
-                    "id": "[resourceId('Microsoft.Network/virtualWans',parameters('wanname'))]"
+                    "id": "[parameters('wanName')]"
                 }
             }
         },
         {
+            "comments": "Create a VPN Site. Can be connected to multiple virtual Hubs. BGP enabled",
             "type": "Microsoft.Network/vpnSites",
-            "name": "[parameters('vpnsitename')]",
-            "apiVersion": "2018-08-01",
-            "location": "[parameters('location')]",
+            "name": "[parameters('siteName')]",
+            "apiVersion": "[variables('networkApiVersion')]",
+            "location": "[variables('siteLocation')]",
             "dependsOn": [
-                "[concat('Microsoft.Network/virtualWans/', parameters('wanname'))]"
+                "[resourceId('Microsoft.Network/virtualWans/', parameters('wanname'))]"
             ],
             "properties": {
                 "addressSpace": {
-                    "addressPrefixes": "[parameters('sitePrefix')]"
+                    "addressPrefixes": "[concat(reference('branchNva').outputs.private_ip_address.value, '/32')]"
                 },               
                 "bgpProperties": {
                     "asn":  "[parameters('siteAsn')]",
@@ -119,36 +143,37 @@
                 "deviceProperties": {
                     "linkSpeedInMbps": 0
                 },
-                "ipAddress": "[parameters('vpnsitePublicIPAddress')]",
+                "ipAddress": "[reference('branchNva').outputs.private_ip_address.value]",
                 "virtualWan": {
-                    "id": "[resourceId('Microsoft.Network/virtualWans',parameters('wanname'))]"
+                    "id": "[resourceId('Microsoft.Network/virtualWans',parameters('wanName'))]"
                 }
             }
         },
         {
+            "comments": "The VPN gateway is handled under the covers in the GUI, is part of the virtual hub",
             "type": "Microsoft.Network/vpnGateways",
-            "name": "[parameters('vpngatewayname')]",
-            "apiVersion": "2018-08-01",
-            "location": "[parameters('location')]",
+            "name": "[variables('vpnGwName')]",
+            "apiVersion": "[variables('networkApiVersion')]",
+            "location": "[parameters('hubLocation')]",
             "dependsOn": [
-                "[concat('Microsoft.Network/virtualHubs/', parameters('hubname'))]",
-                "[concat('Microsoft.Network/vpnSites/', parameters('vpnsitename'))]"
+                "parameters('hubName')]",
+                "parameters('siteName')]"
             ],
             "properties": {
                 "connections": [
                     {
-                        "name": "[parameters('connectionName')]",
+                        "name": "[variables('vpnConnectionName')]",
                         "properties": {
                             "connectionBandwidth": 10,
-                            "enableBgp": "[parameters('enableBgp')]",
+                            "enableBgp": "[variables('enableBgp')]",
                             "remoteVpnSite": {
-                                "id": "[resourceId('Microsoft.Network/vpnSites', parameters('vpnsitename'))]"
+                                "id": "[resourceId('Microsoft.Network/vpnSites', parameters('siteName'))]"
                             }
                         }
                     }
                 ],
                 "virtualHub": {
-                    "id": "[resourceId('Microsoft.Network/virtualHubs',parameters('hubname'))]"
+                    "id": "[resourceId('Microsoft.Network/virtualHubs',parameters('hubName'))]"
                 },
                 "bgpSettings": {
                     "asn": 65515
