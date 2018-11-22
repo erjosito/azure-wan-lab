@@ -265,7 +265,7 @@
                     "uri": "[uri(deployment().properties.templateLink.uri, 'fetchNicIpAddress.json')]"
                 },
                 "parameters": {
-                    "publicIPAddressId": {
+                    "nicId": {
                         "value": "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
                     }
                 }
