@@ -24,6 +24,7 @@ sudo wget https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/ipsec.
 sudo wget https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/ipsec-notify.sh -P /usr/local/sbin/
 sudo chmod 644 /etc/ipsec.conf
 sudo chmod 600 /etc/ipsec.secrets
+sudo chmod 755 /usr/local/sbin/ipsec-notify.sh
 sudo apparmor_parser -R /etc/apparmor.d/usr.lib.ipsec.charon
 sudo apparmor_parser -R /etc/apparmor.d/usr.lib.ipsec.stroke
 sudo ln -s /etc/apparmor.d/usr.lib.ipsec.charon /etc/apparmor.d/disable/

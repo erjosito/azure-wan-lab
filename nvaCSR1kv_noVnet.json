@@ -2,8 +2,17 @@
     "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
-        "vmName": {
+        "location": {
             "type": "string"
+        },
+        "networkInterfaceName": {
+            "type": "string"
+        },
+        "networkSecurityGroupName": {
+            "type": "string"
+        },
+        "networkSecurityGroupRules": {
+            "type": "array"
         },
         "subnetName": {
             "type": "string"
@@ -18,6 +27,12 @@
             "type": "string"
         },
         "publicIpAddressSku": {
+            "type": "string"
+        },
+        "virtualMachineName": {
+            "type": "string"
+        },
+        "virtualMachineRG": {
             "type": "string"
         },
         "osDiskType": {
@@ -61,23 +76,6 @@
         }
     },
     "variables": {
-        "nicName": "[concat(parameters('vmName'), '-nic')]",
-        "nsgName": "[concat(parameters('vmName'), '-nsg')]",
-        "nsgRules": {
-            "name": "SSH",
-            "properties": {
-                "priority": 1010,
-                "protocol": "TCP",
-                "access": "Allow",
-                "direction": "Inbound",
-                "sourceApplicationSecurityGroups": [],
-                "destinationApplicationSecurityGroups": [],
-                "sourceAddressPrefix": "*",
-                "sourcePortRange": "*",
-                "destinationAddressPrefix": "*",
-                "destinationPortRange": "22"
-            }
-        },
         "nsgId": "[resourceId(resourceGroup().name, 'Microsoft.Network/networkSecurityGroups', parameters('networkSecurityGroupName'))]",
         "vnetId": "[parameters('virtualNetworkId')]",
         "subnetRef": "[concat(variables('vnetId'), '/subnets/', parameters('subnetName'))]"

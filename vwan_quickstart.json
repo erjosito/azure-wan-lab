@@ -109,7 +109,7 @@
         {
             "comments": "Create a Virtual Hub. Typically one per Azure region",
             "type": "Microsoft.Network/virtualHubs",
-            "name": "[parameters('hubname')]",
+            "name": "[parameters('hubName')]",
             "apiVersion": "[variables('networkApiVersion')]",
             "location": "[parameters('hubLocation')]",
             "dependsOn": [
@@ -129,7 +129,7 @@
             "apiVersion": "[variables('networkApiVersion')]",
             "location": "[variables('siteLocation')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Network/virtualWans/', parameters('wanname'))]"
+                "[resourceId('Microsoft.Network/virtualWans/', parameters('wanName'))]"
             ],
             "properties": {
                 "addressSpace": {

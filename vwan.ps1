@@ -55,7 +55,7 @@ $branch2vnet = get-azvirtualnetwork -resourcegroupname $rg -name $branch2vnetnam
 
 # Deploy CSR1v routers to branch1 and branch2, to simulate remote onprem VPN devices
 $basedir="C:\Users\jomore\OneDrive - Microsoft\code\Powershell\ARM_templates\csr1kv\"
-$templatefile=$basedir+"template.json"
+$templatefile=$basedir+"nvaCsr1kv_novnet.json"
 $paramfile=$basedir+"parameters.json"
 $adminpwd = ConvertTo-SecureString "Microsoft123!" -AsPlainText -Force
 $csrname1="csr01"
