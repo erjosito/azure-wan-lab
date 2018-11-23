@@ -7,7 +7,7 @@
             "type": "string"
         },
         "vnetPrefix": {
-            "defaultValue": "192.168.100.0/24",
+            "defaultValue": "10.0.1.0/24",
             "type": "string"
         },
         "subnetName": {
@@ -15,7 +15,7 @@
             "type": "string"
         },
         "subnetPrefix": {
-            "defaultValue": "192.168.100.0/26",
+            "defaultValue": "10.0.1.0/26",
             "type": "string"
         },
         "vmType": {
@@ -24,7 +24,7 @@
             "allowedValues": ["ubuntu"]
         },
         "vmName": {
-            "defaultValue": "myNva",
+            "defaultValue": "myVM",
             "type": "string"
         },
         "vmUsr": {
@@ -38,16 +38,6 @@
         "vmSize": {
             "defaultValue": "Standard_B1s",
             "type": "string"
-        },
-        "scriptUri": {
-            "defaultValue": "[uri(deployment().properties.templateLink.uri, 'linuxNVAconfig.sh')]",
-            "type": "string",
-            "metadata": { "description": "Script that will be executed" }            
-        },
-        "scriptCmd": {
-            "defaultValue": "sh linuxNVAconfig.sh",
-            "type": "string",
-            "metadata": { "description": "Command to run the script" }            
         }
     },
     "variables": {
@@ -68,7 +58,26 @@
         "ipConfigName": "[concat(variables('nicName'),'-ipConfig')]",
 		"diskName": "[concat(parameters('vmName'),'-osDisk')]",
 		"diskType": "Standard_LRS",
-		"osDiskSize": 32
+		"osDiskSize": 32,
+        "nsgName": "[concat(parameters('vmName'), '-nsg')]",
+        "nsgRules": [
+            {
+                "name": "SSH",
+                "properties": {
+                    "priority": 1010,
+                    "protocol": "TCP",
+                    "access": "Allow",
+                    "direction": "Inbound",
+                    "sourceApplicationSecurityGroups": [],
+                    "destinationApplicationSecurityGroups": [],
+                    "sourceAddressPrefix": "*",
+                    "sourcePortRange": "*",
+                    "destinationAddressPrefix": "*",
+                    "destinationPortRange": "22"
+                }
+            }
+        ],
+        "nsgId": "[resourceId(resourceGroup().name, 'Microsoft.Network/networkSecurityGroups', variables('nsgName'))]",
     },
     "resources": [
         {
@@ -96,7 +105,7 @@
             "dependsOn": []
         },
 		{
-			"comments": "Availability set for eventual NVA HA",
+			"comments": "Availability set for eventual HA",
 			"type": "Microsoft.Compute/availabilitySets",
 			"name": "[variables('avSetName')]",
             "apiVersion": "[variables('computeApiVersion')]",
@@ -110,7 +119,7 @@
 			}
 		},
         {
-            "comments": "Deploy Linux VM as Virtual Network Appliance",
+            "comments": "Deploy Linux VM",
             "type": "Microsoft.Compute/virtualMachines",
             "name": "[parameters('vmName')]",
             "apiVersion": "[variables('computeApiVersion')]",
@@ -167,6 +176,17 @@
             ]
         },
         {
+            "comments": "NSG allowing port 22",
+            "name": "[variables('nsgName')]",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "[variables('networkApiVersion')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "securityRules": "[variables('nsgRules')]"
+            },
+            "tags": {}
+        },
+        {
             "comments": "Public IP address",
             "type": "Microsoft.Network/publicIPAddresses",
             "name": "[variables('pipName')]",
@@ -180,7 +200,7 @@
             "dependsOn": []
         },
         {
-			"comments": "NIC created with dynamic IP addresses",
+			"comments": "NIC created with dynamic IP address and NSG",
             "type": "Microsoft.Network/networkInterfaces",
             "name": "[variables('nicName')]",
             "apiVersion": "[variables('networkApiVersion')]",
@@ -200,89 +220,22 @@
                         }
                     }
                 ],
+                "networkSecurityGroup": {
+                    "id": "[variables('nsgId')]"
+                },
                 "dnsSettings": {
                     "dnsServers": []
                 },
-                "enableIPForwarding": true
+                "enableIPForwarding": false
             },
             "resources": [],
             "dependsOn": [
+                "[variables('nsgName')]",
                 "[variables('pipName')]",
                 "[parameters('vnetName')]"
-            ]
-        },
-        {
-            "type": "Microsoft.Compute/virtualMachines/extensions",
-            "name": "[concat(parameters('vmName'), '/installcustomscript')]",
-            "apiVersion": "[variables('computeApiVersion')]",
-            "location": "[resourceGroup().location]",
-            "properties": {
-                "publisher": "Microsoft.Azure.Extensions",
-                "type": "CustomScript",
-                "typeHandlerVersion": "2.0",
-                "autoUpgradeMinorVersion": true,
-                "settings": {
-                    "fileUris": [
-                        "[parameters('scriptUri')]"
-                    ],
-                    "commandToExecute": "[parameters('scriptCmd')]"
-                }
-            },
-            "dependsOn": [
-                "[parameters('vmName')]"
-            ]
-        },
-        {
-            "comments": "Nested template to wait for VM creation before fetching the allocated public IP",
-            "name": "fetchIpAddress",
-            "apiVersion": "2017-05-10",
-            "type": "Microsoft.Resources/deployments",
-            "properties": {
-                "mode": "Incremental",
-                "templateLink": {
-                    "contentVersion": "1.0.0.0",
-                    "uri": "[uri(deployment().properties.templateLink.uri, 'fetchIpAddress.json')]"
-                },
-                "parameters": {
-                    "publicIPAddressId": {
-                        "value": "[resourceId('Microsoft.Network/publicIPAddresses', variables('pipName'))]"
-                    }
-                }
-            },
-            "dependsOn": [
-                "[parameters('vmName')]"
-            ]
-        },
-        {
-            "comments": "Nested template to wait for VM creation before fetching the allocated private IP of the NIC",
-            "name": "fetchNicIpAddress",
-            "apiVersion": "2017-05-10",
-            "type": "Microsoft.Resources/deployments",
-            "properties": {
-                "mode": "Incremental",
-                "templateLink": {
-                    "contentVersion": "1.0.0.0",
-                    "uri": "[uri(deployment().properties.templateLink.uri, 'fetchNicIpAddress.json')]"
-                },
-                "parameters": {
-                    "nicId": {
-                        "value": "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
-                    }
-                }
-            },
-            "dependsOn": [
-                "[parameters('vmName')]"
             ]
         }
     ],
     "outputs": {
-        "public_ip_address": {
-            "type": "string",
-            "value": "[reference('fetchIpAddress').outputs.ipAddress.value]"
-        },
-        "private_ip_address": {
-            "type": "string",
-            "value": "[reference('fetchNicIpAddress').outputs.ipAddress.value]"
-        }        
     }
 }
