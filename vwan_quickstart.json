@@ -163,7 +163,7 @@
                 "deviceProperties": {
                     "linkSpeedInMbps": 0
                 },
-                "ipAddress": "[reference('branchNva').outputs.private_ip_address.value]",
+                "ipAddress": "[reference('branchNva').outputs.public_ip_address.value]",
                 "virtualWan": {
                     "id": "[resourceId('Microsoft.Network/virtualWans',parameters('wanName'))]"
                 }

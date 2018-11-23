@@ -43,21 +43,23 @@
         "pipSku": "Basic",
         "nicName": "[concat(parameters('vmName'), '-nic')]",
         "nsgName": "[concat(parameters('vmName'), '-nsg')]",
-        "nsgRules": {
-            "name": "SSH",
-            "properties": {
-                "priority": 1010,
-                "protocol": "TCP",
-                "access": "Allow",
-                "direction": "Inbound",
-                "sourceApplicationSecurityGroups": [],
-                "destinationApplicationSecurityGroups": [],
-                "sourceAddressPrefix": "*",
-                "sourcePortRange": "*",
-                "destinationAddressPrefix": "*",
-                "destinationPortRange": "22"
+        "nsgRules": [
+            {
+                "name": "SSH",
+                "properties": {
+                    "priority": 1010,
+                    "protocol": "TCP",
+                    "access": "Allow",
+                    "direction": "Inbound",
+                    "sourceApplicationSecurityGroups": [],
+                    "destinationApplicationSecurityGroups": [],
+                    "sourceAddressPrefix": "*",
+                    "sourcePortRange": "*",
+                    "destinationAddressPrefix": "*",
+                    "destinationPortRange": "22"
+                }
             }
-        },
+        ],
         "nsgId": "[resourceId(resourceGroup().name, 'Microsoft.Network/networkSecurityGroups', variables('nsgName'))]",
         "vnetId": "[resourceId(resourceGroup().name, 'Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
         "subnetRef": "[concat(variables('vnetId'), '/subnets/', parameters('subnetName'))]",
