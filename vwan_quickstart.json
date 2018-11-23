@@ -4,14 +4,14 @@
     "parameters": {
         "wanName": {
             "type": "string",
-            "defaultValue": "SampleVirtualWan",
+            "defaultValue": "myVirtualWan",
             "metadata": {
                 "description": "Name of the Virtual Wan."
             }
         },
         "hubName": {
             "type": "string",
-            "defaultValue": "SampleVirtualHub",
+            "defaultValue": "myVirtualHub",
             "metadata": {
                 "description": "Name of the Virtual Hub. A virtual hub is created inside a virtual wan."
             }
@@ -32,7 +32,7 @@
         },
         "siteName": {
             "type": "string",
-            "defaultValue": "SampleVpnSite",
+            "defaultValue": "myVpnSite",
             "metadata": {
                 "description": "Name of the vpnsite. A vpnsite represents the on-premise vpn device. A public ip address is mandatory for a vpn site creation."
             }
@@ -137,7 +137,7 @@
             "properties": {
                 "addressPrefix": "[parameters('hubPrefix')]",
                 "virtualWan": {
-                    "id": "[parameters('wanName')]"
+                    "id": "[resourceId('Microsoft.Network/virtualWans', parameters('wanName'))]"
                 }
             }
         },
