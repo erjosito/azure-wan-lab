@@ -108,7 +108,7 @@
             "dependsOn": [
                 "[variables('nsgName')]",
                 "[variables('pipName')]",
-                "[parameters('vnetName')]",
+                "[parameters('vnetName')]"
             ],
             "properties": {
                 "ipConfigurations": [

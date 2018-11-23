@@ -95,7 +95,6 @@
                     {
                         "name": "[concat('Connection-', parameters('site_name'))]",
                         "properties": {
-                            "provisioningState": "Succeeded",
                             "remoteVpnSite": {
                                 "id": "[resourceId('Microsoft.Network/vpnSites', parameters('vpnSites_branch2_name'))]"
                             },
