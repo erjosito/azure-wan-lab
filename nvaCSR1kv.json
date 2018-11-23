@@ -3,64 +3,44 @@
     "contentVersion": "1.0.0.0",
     "parameters": {
         "vmName": {
+            "type": "string",
+            "defaultValue": "myCsr"
+        },
+        "vnetName": {
+            "defaultValue": "myVnet",
+            "type": "string"
+        },
+        "vnetPrefix": {
+            "defaultValue": "192.168.100.0/24",
             "type": "string"
         },
         "subnetName": {
+            "defaultValue": "subnet1",
             "type": "string"
         },
-        "virtualNetworkId": {
+        "subnetPrefix": {
+            "defaultValue": "192.168.100.0/26",
             "type": "string"
         },
-        "publicIpAddressName": {
-            "type": "string"
-        },
-        "publicIpAddressType": {
-            "type": "string"
-        },
-        "publicIpAddressSku": {
-            "type": "string"
-        },
-        "osDiskType": {
-            "type": "string"
-        },
-        "virtualMachineSize": {
-            "type": "string"
+        "vmSize": {
+            "type": "string",
+            "defaultValue": "Standard_D2_v2"
         },
         "adminUsername": {
-            "type": "string"
+            "type": "string",
+            "defaultValue": "lab-user"
         },
         "adminPassword": {
             "type": "secureString"
-        },
-        "diagnosticsStorageAccountName": {
-            "type": "string"
-        },
-        "diagnosticsStorageAccountId": {
-            "type": "string"
-        },
-        "diagnosticsStorageAccountType": {
-            "type": "string"
-        },
-        "diagnosticsStorageAccountKind": {
-            "type": "string"
-        },
-        "autoShutdownStatus": {
-            "type": "string"
-        },
-        "autoShutdownTime": {
-            "type": "string"
-        },
-        "autoShutdownTimeZone": {
-            "type": "string"
-        },
-        "autoShutdownNotificationStatus": {
-            "type": "string"
-        },
-        "autoShutdownNotificationLocale": {
-            "type": "string"
         }
     },
     "variables": {
+        "networkApiVersion": "2018-04-01",
+        "computeApiVersion": "2018-06-01",
+        "storageApiVersion": "2018-07-01",
+        "pipName": "[concat(parameters('vmName'), '-pip')]",
+        "pipType": "Dynamic",
+        "pipSku": "Basic",
         "nicName": "[concat(parameters('vmName'), '-nic')]",
         "nsgName": "[concat(parameters('vmName'), '-nsg')]",
         "nsgRules": {
@@ -78,19 +58,57 @@
                 "destinationPortRange": "22"
             }
         },
-        "nsgId": "[resourceId(resourceGroup().name, 'Microsoft.Network/networkSecurityGroups', parameters('networkSecurityGroupName'))]",
-        "vnetId": "[parameters('virtualNetworkId')]",
-        "subnetRef": "[concat(variables('vnetId'), '/subnets/', parameters('subnetName'))]"
-    },
+        "nsgId": "[resourceId(resourceGroup().name, 'Microsoft.Network/networkSecurityGroups', variables('nsgName'))]",
+        "vnetId": "[resourceId(resourceGroup().name, 'Microsoft.Network/virtualNetworks', parameters('vnetName'))]",
+        "subnetRef": "[concat(variables('vnetId'), '/subnets/', parameters('subnetName'))]",
+        "autoShutdownStatus": "Enabled",
+        "autoShutdownTime": "19:00",
+        "autoShutdownTimeZone": "UTC",
+        "autoShutdownNotificationStatus": "Disabled",
+        "autoShutdownNotificationLocale": "en",
+        "storageName": "[toLower(concat(uniqueString(resourceGroup().id), 'diag'))]",
+        "storageId": "[resourceId(resourceGroup().name, 'Microsoft.Storage/storageAccounts', variables('storageName'))]",
+        "diagnosticsStorageAccountName": "[variables('storageName')]",
+        "diagnosticsStorageAccountId": "[variables('storageId')]",
+        "diagnosticsStorageAccountType": "Standard_LRS",
+        "diagnosticsStorageAccountKind": "Storage",
+        "osDiskType": "StandardSSD_LRS"
+   },
     "resources": [
         {
-            "name": "[parameters('networkInterfaceName')]",
+            "comments": "Create Vnet with one subnet",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[parameters('vnetName')]",
+            "apiVersion": "[variables('networkApiVersion')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[parameters('vnetPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[parameters('subnetName')]",
+                        "properties": {
+                            "addressPrefix": "[parameters('subnetPrefix')]"
+                        }
+                    }
+                ]
+            },
+            "resources": [],
+            "dependsOn": []
+        },
+        {
+            "comments": "Crate NIC for VM",
+            "name": "[variables('nicName')]",
             "type": "Microsoft.Network/networkInterfaces",
-            "apiVersion": "2018-04-01",
-            "location": "[parameters('location')]",
+            "apiVersion": "[variables('networkApiVersion')]",
+            "location": "[resourceGroup().location]",
             "dependsOn": [
-                "[concat('Microsoft.Network/networkSecurityGroups/', parameters('networkSecurityGroupName'))]",
-                "[concat('Microsoft.Network/publicIpAddresses/', parameters('publicIpAddressName'))]"
+                "[variables('nsgName')]",
+                "[variables('pipName')]",
+                "[parameters('vnetName')]",
             ],
             "properties": {
                 "ipConfigurations": [
@@ -102,7 +120,7 @@
                             },
                             "privateIPAllocationMethod": "Dynamic",
                             "publicIpAddress": {
-                                "id": "[resourceId(resourceGroup().name, 'Microsoft.Network/publicIpAddresses', parameters('publicIpAddressName'))]"
+                                "id": "[resourceId(resourceGroup().name, 'Microsoft.Network/publicIpAddresses', variables('pipName'))]"
                             }
                         }
                     }
@@ -114,46 +132,49 @@
             "tags": {}
         },
         {
-            "name": "[parameters('networkSecurityGroupName')]",
+            "comments": "NSG allowing port 22",
+            "name": "[variables('nsgName')]",
             "type": "Microsoft.Network/networkSecurityGroups",
-            "apiVersion": "2018-08-01",
-            "location": "[parameters('location')]",
+            "apiVersion": "[variables('networkApiVersion')]",
+            "location": "[resourceGroup().location]",
             "properties": {
-                "securityRules": "[parameters('networkSecurityGroupRules')]"
+                "securityRules": "[variables('nsgRules')]"
             },
             "tags": {}
         },
         {
-            "name": "[parameters('publicIpAddressName')]",
+            "comments": "PIP for the NVA",
+            "name": "[variables('pipName')]",
             "type": "Microsoft.Network/publicIpAddresses",
-            "apiVersion": "2018-08-01",
-            "location": "[parameters('location')]",
+            "apiVersion": "[variables('networkApiVersion')]",
+            "location": "[resourceGroup().location]",
             "properties": {
-                "publicIpAllocationMethod": "[parameters('publicIpAddressType')]"
+                "publicIpAllocationMethod": "[variables('pipType')]"
             },
             "sku": {
-                "name": "[parameters('publicIpAddressSku')]"
+                "name": "[variables('pipSku')]"
             },
             "tags": {}
         },
         {
-            "name": "[parameters('virtualMachineName')]",
+            "comments": "Virtual Machine",
+            "name": "[parameters('vmName')]",
             "type": "Microsoft.Compute/virtualMachines",
-            "apiVersion": "2018-06-01",
-            "location": "[parameters('location')]",
+            "apiVersion": "[variables('computeApiVersion')]",
+            "location": "[resourceGroup().location]",
             "dependsOn": [
-                "[concat('Microsoft.Network/networkInterfaces/', parameters('networkInterfaceName'))]",
-                "[concat('Microsoft.Storage/storageAccounts/', parameters('diagnosticsStorageAccountName'))]"
+                "[variables('nicName')]",
+                "[variables('storageName')]"
             ],
             "properties": {
                 "hardwareProfile": {
-                    "vmSize": "[parameters('virtualMachineSize')]"
+                    "vmSize": "[parameters('vmSize')]"
                 },
                 "storageProfile": {
                     "osDisk": {
                         "createOption": "fromImage",
                         "managedDisk": {
-                            "storageAccountType": "[parameters('osDiskType')]"
+                            "storageAccountType": "[variables('osDiskType')]"
                         }
                     },
                     "imageReference": {
@@ -166,19 +187,19 @@
                 "networkProfile": {
                     "networkInterfaces": [
                         {
-                            "id": "[resourceId('Microsoft.Network/networkInterfaces', parameters('networkInterfaceName'))]"
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
                         }
                     ]
                 },
                 "osProfile": {
-                    "computerName": "[parameters('virtualMachineName')]",
+                    "computerName": "[parameters('vmName')]",
                     "adminUsername": "[parameters('adminUsername')]",
                     "adminPassword": "[parameters('adminPassword')]"
                 },
                 "diagnosticsProfile": {
                     "bootDiagnostics": {
                         "enabled": true,
-                        "storageUri": "[concat('https://', parameters('diagnosticsStorageAccountName'), '.blob.core.windows.net/')]"
+                        "storageUri": "[concat('https://', variables('diagnosticsStorageAccountName'), '.blob.core.windows.net/')]"
                     }
                 }
             },
@@ -190,46 +211,98 @@
             "tags": {}
         },
         {
-            "name": "[parameters('diagnosticsStorageAccountName')]",
+            "comments": "Storage Account for diagnostics",
+            "name": "[variables('storageName')]",
             "type": "Microsoft.Storage/storageAccounts",
-            "apiVersion": "2018-07-01",
-            "location": "[parameters('location')]",
+            "apiVersion": "[variables('storageApiVersion')]",
+            "location": "[resourceGroup().location]",
             "properties": {},
-            "kind": "[parameters('diagnosticsStorageAccountKind')]",
+            "kind": "[variables('diagnosticsStorageAccountKind')]",
             "sku": {
-                "name": "[parameters('diagnosticsStorageAccountType')]"
+                "name": "[variables('diagnosticsStorageAccountType')]"
             },
             "tags": {}
         },
         {
-            "name": "[concat('shutdown-computevm-', parameters('virtualMachineName'))]",
+            "comments": "Shutdown schedule",
+            "name": "[concat('shutdown-computevm-', parameters('vmName'))]",
             "type": "Microsoft.DevTestLab/schedules",
             "apiVersion": "2017-04-26-preview",
-            "location": "[parameters('location')]",
+            "location": "[resourceGroup().location]",
             "dependsOn": [
-                "[concat('Microsoft.Compute/virtualMachines/', parameters('virtualMachineName'))]"
+                "[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]"
             ],
             "properties": {
-                "status": "[parameters('autoShutdownStatus')]",
+                "status": "[variables('autoShutdownStatus')]",
                 "taskType": "ComputeVmShutdownTask",
                 "dailyRecurrence": {
-                    "time": "[parameters('autoShutdownTime')]"
+                    "time": "[variables('autoShutdownTime')]"
                 },
-                "timeZoneId": "[parameters('autoShutdownTimeZone')]",
-                "targetResourceId": "[resourceId('Microsoft.Compute/virtualMachines', parameters('virtualMachineName'))]",
+                "timeZoneId": "[variables('autoShutdownTimeZone')]",
+                "targetResourceId": "[resourceId('Microsoft.Compute/virtualMachines', parameters('vmName'))]",
                 "notificationSettings": {
-                    "status": "[parameters('autoShutdownNotificationStatus')]",
-                    "notificationLocale": "[parameters('autoShutdownNotificationLocale')]",
+                    "status": "[variables('autoShutdownNotificationStatus')]",
+                    "notificationLocale": "[variables('autoShutdownNotificationLocale')]",
                     "timeInMinutes": "30"
                 }
             },
             "tags": {}
+        },
+        {
+            "comments": "Nested template to wait for VM creation before fetching the allocated public IP",
+            "name": "fetchIpAddress",
+            "apiVersion": "2017-05-10",
+            "type": "Microsoft.Resources/deployments",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "contentVersion": "1.0.0.0",
+                    "uri": "[uri(deployment().properties.templateLink.uri, 'fetchIpAddress.json')]"
+                },
+                "parameters": {
+                    "publicIPAddressId": {
+                        "value": "[resourceId('Microsoft.Network/publicIPAddresses', variables('pipName'))]"
+                    }
+                }
+            },
+            "dependsOn": [
+                "[parameters('vmName')]"
+            ]
+        },
+        {
+            "comments": "Nested template to wait for VM creation before fetching the allocated private IP of the NIC",
+            "name": "fetchNicIpAddress",
+            "apiVersion": "2017-05-10",
+            "type": "Microsoft.Resources/deployments",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "contentVersion": "1.0.0.0",
+                    "uri": "[uri(deployment().properties.templateLink.uri, 'fetchNicIpAddress.json')]"
+                },
+                "parameters": {
+                    "nicId": {
+                        "value": "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
+                    }
+                }
+            },
+            "dependsOn": [
+                "[parameters('vmName')]"
+            ]
         }
     ],
     "outputs": {
         "adminUsername": {
             "type": "string",
             "value": "[parameters('adminUsername')]"
-        }
+        },
+        "public_ip_address": {
+            "type": "string",
+            "value": "[reference('fetchIpAddress').outputs.ipAddress.value]"
+        },
+        "private_ip_address": {
+            "type": "string",
+            "value": "[reference('fetchNicIpAddress').outputs.ipAddress.value]"
+        }        
     }
 }

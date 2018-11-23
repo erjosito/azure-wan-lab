@@ -57,7 +57,14 @@
             "metadata": {
                 "description": "Password to be configured in the NVA (user is lab-user)"
             }
-        }
+        },
+        "presharedKey": {
+            "type": "securestring",
+            "defaultValue": "[parameters('nvaPwd')]",
+            "metadata": {
+                "description": "Password to be configured in the NVA (user is lab-user)"
+            }
+        }        
     },
     "variables": {
         "networkApiVersion": "2018-08-01",
@@ -66,17 +73,23 @@
         "enableBgp": "true",
         "vpnConnectionName": "[concat(parameters('hubName'), '-connection')]",
         "vpnGwName": "[concat(parameters('hubName'), '-vpnGw')]",
+        "branchVnetPrefix": "192.168.100.0/24",
+        "branchSubnetPrefix": "192.168.100.0/26",
         "nvaSettings": {
             "linux": {
                 "uri": "[uri(deployment().properties.templateLink.uri, 'nvaLinux.json')]",
                 "parameters": {
-                    "vmPwd": {"value": "[parameters('nvaPwd')]"}
+                    "vmPwd": {"value": "[parameters('nvaPwd')]"},
+                    "vnetPrefix": {"value": "[variables('branchVnetPrefix')]"},
+                    "subnetPrefix": {"value": "[variables('branchSubnetPrefix')]"}
                 }
             },
             "cisco_csr": {
                 "uri": "[uri(deployment().properties.templateLink.uri, 'nvaCSR1kv.json')]",
                 "parameters": {
-
+                    "adminPwd": {"value": "[parameters('nvaPwd')]"},
+                    "vnetPrefix": {"value": "[variables('branchVnetPrefix')]"},
+                    "subnetPrefix": {"value": "[variables('branchSubnetPrefix')]"}
                 }
             }
         }
@@ -104,7 +117,13 @@
             "name": "[parameters('wanName')]",
             "apiVersion": "[variables('networkApiVersion')]",
             "location": "[resourceGroup().location]",
-            "properties": { }
+            "properties": {
+                "disableVpnEncryption": false,
+                "allowBranchToBranchTraffic": true,
+                "allowVnetToVnetTraffic": true,
+                "office365LocalBreakoutCategory": "None",
+                "p2SVpnServerConfigurations": []
+             }
         },
         {
             "comments": "Create a Virtual Hub. Typically one per Azure region",
@@ -128,12 +147,11 @@
             "name": "[parameters('siteName')]",
             "apiVersion": "[variables('networkApiVersion')]",
             "location": "[variables('siteLocation')]",
-            "dependsOn": [
-                "[resourceId('Microsoft.Network/virtualWans/', parameters('wanName'))]"
-            ],
             "properties": {
                 "addressSpace": {
-                    "addressPrefixes": "[concat(reference('branchNva').outputs.private_ip_address.value, '/32')]"
+                    "addressPrefixes": [
+                        "[concat(reference('branchNva').outputs.private_ip_address.value, '/32')]"
+                    ]
                 },               
                 "bgpProperties": {
                     "asn":  "[parameters('siteAsn')]",
@@ -147,7 +165,10 @@
                 "virtualWan": {
                     "id": "[resourceId('Microsoft.Network/virtualWans',parameters('wanName'))]"
                 }
-            }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualWans/', parameters('wanName'))]"
+            ]
         },
         {
             "comments": "The VPN gateway is handled under the covers in the GUI, is part of the virtual hub",
@@ -155,15 +176,15 @@
             "name": "[variables('vpnGwName')]",
             "apiVersion": "[variables('networkApiVersion')]",
             "location": "[parameters('hubLocation')]",
-            "dependsOn": [
-                "[parameters('hubName')]",
-                "[parameters('siteName')]"
-            ],
             "properties": {
                 "connections": [
                     {
                         "name": "[variables('vpnConnectionName')]",
                         "properties": {
+                            "vpnConnectionProtocolType": "IKEv2",
+                            "sharedKey": "[parameters('presharedKey')]",
+                            "enableRateLimiting": false,
+                            "enableInternetSecurity": false,
                             "connectionBandwidth": 10,
                             "enableBgp": "[variables('enableBgp')]",
                             "remoteVpnSite": {
@@ -176,9 +197,15 @@
                     "id": "[resourceId('Microsoft.Network/virtualHubs',parameters('hubName'))]"
                 },
                 "bgpSettings": {
-                    "asn": 65515
-                }
-            }
+                    "asn": 65515,
+                    "peerWeight": 0
+                },
+                "vpnGatewayScaleUnit": 1
+            },
+            "dependsOn": [
+                "[parameters('hubName')]",
+                "[parameters('siteName')]"
+            ]
         }
     ]
 }
