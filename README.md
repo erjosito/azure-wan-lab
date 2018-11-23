@@ -269,3 +269,10 @@ BGP table version is 1, main routing table version 1
 Neighbor        V           AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
 192.168.0.4     4        65515       0       0        1    0    0 never    Idle
 ```
+
+# Deploy a test vnet
+
+
+```
+ az group deployment create -g vwantest --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vmLinux.json --parameters '{"vmPwd":{"value":"Microsoft123!"}, "vnetName":{"value":"testvnet1"}, "vnetPrefix":{"value":"10.0.1.0/24"}, "subnetPrefix":{"value":"10.0.1.0/26"}, "vmName":{"value":"testvm1"}}'
+```
