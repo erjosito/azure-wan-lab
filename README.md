@@ -7,7 +7,10 @@
 
 ## Setup the scenario
 
+**Important**: support for ARM/CLI/Powershell is limited. As quoted in the Virtual WAN FAQ, *Virtual WAN is primarily a REST or Portal driven service*.
+
 This template will generate the following resources:
+
 * A Vnet with an NVA to simulate your onprem device (you can choose between different NVA types, Linux and Cisco CSR 1000v supported at this time)
 * A Virtual WAN resource, with a Virtual Hub and a VPN Site, preconfigured with BGP and the public/private IP addresses of the NVA described in the previous bullet
 
@@ -238,7 +241,7 @@ ip route 10.0.0.0 255.0.0.0 Tunnel0
 
 Do not forget to save your configuration!
 
-**Note:** The last route to 10.0.0.0/8 is in order to route to Azure Vnets that will be created later in this lab
+**Note:** The last route to 10.0.0.0/8 is in order to route to Azure Vnets that will be created later in this lab, since BGP is not working yet
 
 Now you can verify that the IPSec tunnel has been established. The first step is verifying that the state of your IKE Security Association is `READY`:
 
@@ -373,8 +376,143 @@ PING 192.168.100.4 (192.168.100.4) 56(84) bytes of data.
 
 # Deploy a second test vnet, peered to the first one
 
+Let us simulate a hub&spoke network design in Azure. For that we will add a second vnet, that we will peer to the first one: 
+
 ```
  az group deployment create -g vwantest --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vmLinux.json --parameters '{"vmPwd":{"value":"Microsoft123!"}, "vnetName":{"value":"testvnet2"}, "vnetPrefix":{"value":"10.0.2.0/24"}, "subnetPrefix":{"value":"10.0.2.0/26"}, "vmName":{"value":"testvm2"}}'
 ```
 
+The ARM template does not create the peerings, so let us do it manually:
+
+```
+$ az network vnet list -g vwantest -o table --query [].[name,id]
+Column1    Column2
+---------  ---------------------------------------------------------------------------------------------------------------------------------
+myVnet     /subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwantest/providers/Microsoft.Network/virtualNetworks/myVnet
+testvnet1  /subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwantest/providers/Microsoft.Network/virtualNetworks/testvnet1
+testvnet2  /subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwantest/providers/Microsoft.Network/virtualNetworks/testvnet2
+$ testvnet1id=$(az network vnet show -n testvnet1 -g vwantest --query id -o tsv)
+$ testvnet2id=$(az network vnet show -n testvnet2 -g vwantest --query id -o tsv)
+$ az network vnet peering create -g vwantest -n Vnet1ToVnet2 --vnet-name testvnet1 --remote-vnet-id $testvnet2id --allow-vnet-access --allow-gateway-transit
+$ az network vnet peering create -g vwantest -n Vnet2ToVnet1 --vnet-name testvnet2 --remote-vnet-id $testvnet1id --allow-vnet-access --use-remote-gateways
+Peering /subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwantest/providers/Microsoft.Network/virtualNetworks/testvnet2/virtualNetworkPeerings/Vnet2ToVnet1 cannot have UseRemoteGateway flag set to true because remote virtual network /subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwantest/providers/Microsoft.Network/virtualNetworks/testvnet1 referenced by the peering does not have any gateways.
+$ az network vnet peering create -g vwantest -n Vnet2ToVnet1 --vnet-name testvnet2 --remote-vnet-id $testvnet1id --allow-vnet-access
+```
+
+Note how we could set the flag `allow-gateway-transit` for the peering vnet1-to-vnet2, but we could not set the flag `use-remote-gateways` for the peering vnet2-to-vnet1.
+
+You can verify the state of the peerings either with the CLI (`az network vnet peering list --vnetname testvnet1 -g vwantest`) or with Powershell (`get-azvirtualnetworkpeering -ResourceGroupName vwantest -VirtualNetworkName testvnet1 | ft Name,PeeringState`).
+
+Let's have a look at the routing table of the VM in our spoke Vnet (testvnet2):
+
+```
+Azure:/
+PS Azure:\> Get-AzEffectiveRouteTable -NetworkInterfaceName testvm2-nic -ResourceGroupName vwantest | ft
+
+Name State  Source  AddressPrefix    NextHopType NextHopIpAddress
+---- -----  ------  -------------    ----------- ----------------
+     Active Default {10.0.2.0/24}    VnetLocal   {}
+     Active Default {10.0.1.0/24}    VNetPeering {}
+     Active Default {0.0.0.0/0}      Internet    {}
+     Active Default {10.0.0.0/8}     None        {}
+     Active Default {100.64.0.0/10}  None        {}
+     Active Default {172.16.0.0/12}  None        {}
+     Active Default {192.168.0.0/16} None        {}
+```
+
+
+As expected, no route for 192.168.100.4/32 and no route for 192.168.0.0/24, since in this case testvnet2 and the vnet in the Virtual Hub act as two spokes. The problem here is that even if you wanted to install an UDR, which next hop would you define? The only possibility would be having an NVA in testvnet1, that would then forward the traffic to the virtual hub. You would probably have to install an UDR in the virtual hub to be able to go back to testvnet2.
+
+```
+$ az network route-table create -n testvnet2-routes -g vwantest
+$ az network vnet subnet update -n subnet1 --vnet-name testvnet2 -g vwantest --route-table testvnet2-routes
+$ az network route-table route create -g vwantest --route-table-name testvnet2-routes -n branch1 --next-hop-type VirtualAppliance --address-prefix 192.168.100.0/24 --next-hop-ip-address 10.0.1.4                                                                             
+```
+
+```
+$ az network public-ip list -g vwantest --query [].[name,ipAddress] -o tsv
+myCsr-pip       113.81.244.93
+testvm1-pip     13.80.66.27
+testvm2-pip     23.97.243.110
+$ ssh lab-user@13.80.66.27
+Password:
+lab-user@testvm1:~$ sudo -i sysctl -w net.ipv4.ip_forward=1
+lab-user@testvm1:~$ exit
+```
+
+```
+$ az network nic list -g vwantest -o tsv --query [].[name,enableIpForwarding]
+myCsr-nic       False
+testvm1-nic     False
+testvm2-nic     False
+$ az network nic update -n testvm1-nic -g vwantest --ip-forwarding True
+```
+
+
+```
+Azure:/
+PS Azure:\> $route = New-AzVirtualHubRoute -AddressPrefix 10.0.2.0/24 -NextHopIpAddress 10.0.1.4
+Azure:/
+PS Azure:\> $routeTable = New-AzVirtualHubRouteTable -route $route
+Azure:/
+PS Azure:\> Update-AzVirtualhub -ResourceGroupName vwantest -name myVirtualHub -RouteTable $routetable
+
+
+VirtualWan                : /subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwantest/providers/Microsoft.Network/virtualWans/myVirtualWan
+ResourceGroupName         : vwantest
+Name                      : myVirtualHub
+Id                        : /subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwantest/providers/Microsoft.Network/virtualHubs/myVirtualHub
+AddressPrefix             : 192.168.0.0/24
+RouteTable                : Microsoft.Azure.Commands.Network.Models.PSVirtualHubRouteTable
+VirtualNetworkConnections : {vnet1}
+Location                  : westeurope
+Type                      : Microsoft.Network/virtualHubs
+ProvisioningState         : Succeeded
+```
+
+Verify routing at the Vnets:
+
+```
+Azure:/
+PS Azure:\> Get-AzEffectiveRouteTable -NetworkInterfaceName testvm1-nic -ResourceGroupName vwantest | ft
+
+Name State  Source                AddressPrefix      NextHopType           NextHopIpAddress
+---- -----  ------                -------------      -----------           ----------------
+     Active Default               {10.0.1.0/24}      VnetLocal             {}
+     Active Default               {192.168.0.0/24}   VNetPeering           {}
+     Active Default               {10.0.2.0/24}      VNetPeering           {}
+     Active VirtualNetworkGateway {192.168.100.4/32} VirtualNetworkGateway {192.168.0.4}
+     Active Default               {0.0.0.0/0}        Internet              {}
+     Active Default               {10.0.0.0/8}       None                  {}
+     Active Default               {100.64.0.0/10}    None                  {}
+     Active Default               {172.16.0.0/12}    None                  {}
+     Active Default               {192.168.0.0/16}   None                  {}
+
+
+Azure:/
+PS Azure:\> Get-AzEffectiveRouteTable -NetworkInterfaceName testvm2-nic -ResourceGroupName vwantest | ft
+
+Name    State  Source  AddressPrefix      NextHopType      NextHopIpAddress
+----    -----  ------  -------------      -----------      ----------------
+        Active Default {10.0.2.0/24}      VnetLocal        {}
+        Active Default {10.0.1.0/24}      VNetPeering      {}
+        Active Default {0.0.0.0/0}        Internet         {}
+        Active Default {10.0.0.0/8}       None             {}
+        Active Default {100.64.0.0/10}    None             {}
+        Active Default {172.16.0.0/12}    None             {}
+        Active Default {192.168.0.0/16}   None             {}
+branch1 Active User    {192.168.100.0/24} VirtualAppliance {10.0.1.4}
+```
+
+Et voilâ!
+
+```
+lab-user@testvm2:~$ ping 192.168.100.4
+PING 192.168.100.4 (192.168.100.4) 56(84) bytes of data.
+64 bytes from 192.168.100.4: icmp_seq=1 ttl=254 time=7.58 ms
+64 bytes from 192.168.100.4: icmp_seq=2 ttl=254 time=6.42 ms
+64 bytes from 192.168.100.4: icmp_seq=3 ttl=254 time=6.09 ms
+64 bytes from 192.168.100.4: icmp_seq=4 ttl=254 time=6.74 ms
+64 bytes from 192.168.100.4: icmp_seq=5 ttl=254 time=6.04 ms
+```
 
