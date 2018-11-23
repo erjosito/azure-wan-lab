@@ -1,5 +1,10 @@
 # Azure Virtual WAN lab
 
+## To Do:
+
+* Get BGP working (case opened)
+* Consolidate CLI/Powershell (low prio)
+
 ## Setup the scenario
 
 This template will generate the following resources:
@@ -228,9 +233,12 @@ router bgp 65101
  neighbor 192.168.0.4 update-source GigabitEthernet1
 !
 ip route 192.168.0.0 255.255.255.0 Tunnel0
+ip route 10.0.0.0 255.0.0.0 Tunnel0
 ```
 
 Do not forget to save your configuration!
+
+**Note:** The last route to 10.0.0.0/8 is in order to route to Azure Vnets that will be created later in this lab
 
 Now you can verify that the IPSec tunnel has been established. The first step is verifying that the state of your IKE Security Association is `READY`:
 
@@ -261,6 +269,8 @@ If you remove the filter (`show crypto ipsec sa`) to get additional information 
 
 Lastly, verify that the BGP adjacency is up:
 
+**NOT WORKING YET, BUG??? (I have a case opened)**
+
 ```
 myCsr#show ip bgp summary
 BGP router identifier 192.168.100.4, local AS number 65101
@@ -270,9 +280,101 @@ Neighbor        V           AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State
 192.168.0.4     4        65515       0       0        1    0    0 never    Idle
 ```
 
+**Note:** You could add VPN/BGP connections to both gateway instances, to have redundancy at the Azure Virtual Network Gateway level.
+
 # Deploy a test vnet
 
+We will now deploy a VM in Azure, and check we have connectivity over the IPsec tunnel.
 
 ```
  az group deployment create -g vwantest --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vmLinux.json --parameters '{"vmPwd":{"value":"Microsoft123!"}, "vnetName":{"value":"testvnet1"}, "vnetPrefix":{"value":"10.0.1.0/24"}, "subnetPrefix":{"value":"10.0.1.0/26"}, "vmName":{"value":"testvm1"}}'
 ```
+
+You need to configure the peering between the Vnet and the Hub in the portal. The reason is because the Vnet associated to the virtual hub is not in the same subscription:
+
+```
+Azure:/
+PS Azure:\> Get-AzVirtualNetworkPeering -ResourceGroupName vwantest -VirtualNetworkName testvnet1
+
+Name                             : RemoteVnetToHubPeering_ac259ec9-0aca-4d2a-8431-9f67bf6e58f3
+Id                               : /subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwantest/providers/Microsoft.Network/virtualNetworks/testvnet1/virtualNetworkPeerings/RemoteVnetToHubPeering
+                                   _ac259ec9-0aca-4d2a-8431-9f67bf6e58f3
+Etag                             : W/"157182e8-f9d0-4fae-8ddc-9354d879e7cd"
+ResourceGroupName                : vwantest
+VirtualNetworkName               : testvnet1
+PeeringState                     : Connected
+ProvisioningState                : Succeeded
+RemoteVirtualNetwork             : {
+                                     "Id": "/subscriptions/4cd6662f-87e7-4798-97b8-bab6a011b145/resourceGroups/RG_myVirtualHub_053f87d4-bfd8-4ba5-b313-3a59d84f7e33/providers/Microsoft.Network/virtualNetworks/HV_myVirtualHub_9242ce03-1745-4a20-ac27-0df11fa5f048"
+                                   }
+AllowVirtualNetworkAccess        : True
+AllowForwardedTraffic            : False
+AllowGatewayTransit              : False
+UseRemoteGateways                : True
+RemoteGateways                   : null
+RemoteVirtualNetworkAddressSpace : null
+```
+
+Notice the settings of the peering, especially how UseRemoteGateways is set to True.
+
+Let us have a look at the effective routing table of our test VM:
+
+```
+$ az network nic list -g vwantest -o tsv --query [].name
+myCsr-nic
+testvm1-nic
+$ az network nic show-effective-route-table -n testvm1-nic -g vwantest | jq -r '.value[] | "\(.addressPrefix[0])\t\(.nextHopIpAddress[0])\t\(.nextHopType)"'
+10.0.1.0/24     null    VnetLocal
+192.168.0.0/24  null    VNetPeering
+192.168.100.4/32        192.168.0.4     VirtualNetworkGateway
+0.0.0.0/0       null    Internet
+10.0.0.0/8      null    None
+100.64.0.0/10   null    None
+172.16.0.0/12   null    None
+192.168.0.0/16  null    None
+```
+
+Or much easier with PowerShell:
+
+```
+Azure:/
+PS Azure:\> Get-AzEffectiveRouteTable -NetworkInterfaceName testvm1-nic -ResourceGroupName vwantest | ft
+
+Name State  Source                AddressPrefix      NextHopType           NextHopIpAddress
+---- -----  ------                -------------      -----------           ----------------
+     Active Default               {10.0.1.0/24}      VnetLocal             {}
+     Active Default               {192.168.0.0/24}   VNetPeering           {}
+     Active VirtualNetworkGateway {192.168.100.4/32} VirtualNetworkGateway {192.168.0.4}
+     Active Default               {0.0.0.0/0}        Internet              {}
+     Active Default               {10.0.0.0/8}       None                  {}
+     Active Default               {100.64.0.0/10}    None                  {}
+     Active Default               {172.16.0.0/12}    None                  {}
+     Active Default               {192.168.0.0/16}   None                  {}
+```
+
+Notice the entry for 192.168.100.4 of the type VirtualNetworkGateway where the next hop is 192.168.0.4, and how 192.168.0.0/24 is reachable over the Vnet Peering conenction.
+
+You can now SSH to the VM in the new Vnet and try to reach the onprem VPN gateway (192.168.0.4):
+
+```
+$ az network public-ip list -g vwantest -o tsv --query [].[name,ipAddress]
+myCsr-pip    51.144.93.129
+testvm1-pip  13.80.66.27
+$ ssh lab-user@13.80.66.27
+lab-user@13.80.66.27's password:
+lab-user@testvm1:~$
+lab-user@testvm1:~$ ping 192.168.100.4
+lab-user@testvm1:~$ ping 192.168.100.4
+PING 192.168.100.4 (192.168.100.4) 56(84) bytes of data.
+64 bytes from 192.168.100.4: icmp_seq=1 ttl=255 time=7.52 ms
+64 bytes from 192.168.100.4: icmp_seq=2 ttl=255 time=5.26 ms
+^C
+```
+
+# Deploy a second test vnet, peered to the first one
+
+```
+ az group deployment create -g vwantest --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vmLinux.json --parameters '{"vmPwd":{"value":"Microsoft123!"}, "vnetName":{"value":"testvnet2"}, "vnetPrefix":{"value":"10.0.2.0/24"}, "subnetPrefix":{"value":"10.0.2.0/26"}, "vmName":{"value":"testvm2"}}'
+```
+
+

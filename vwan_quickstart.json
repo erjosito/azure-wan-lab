@@ -173,7 +173,7 @@
             ]
         },
         {
-            "comments": "The VPN gateway is handled under the covers in the GUI, is part of the virtual hub",
+            "comments": "The VPN gateway is handled under the covers in the GUI, is part of the virtual hub and is associated with the VPN site",
             "type": "Microsoft.Network/vpnGateways",
             "name": "[variables('vpnGwName')]",
             "apiVersion": "[variables('networkApiVersion')]",
