@@ -3,7 +3,8 @@
 ## To Do:
 
 * Get BGP working (case opened)
-* Consolidate CLI/Powershell (low prio)
+* Branch-to-branch, probably via a new ARM template that deploys NVA+Site+VNG(+Hub?)
+* Consolidate CLI/Powershell (this probably means remove CLI, low prio)
 
 ## Setup the scenario
 
