@@ -15,13 +15,41 @@ This template will generate the following resources:
 * A Vnet with an NVA to simulate your onprem device (you can choose between different NVA types, Linux and Cisco CSR 1000v supported at this time)
 * A Virtual WAN resource, with a Virtual Hub and a VPN Site, preconfigured with BGP and the public/private IP addresses of the NVA described in the previous bullet
 
-First you need to create a resource group, we will use `vwantest` in `westeurope` along this demo:
+First you need to create a resource group, we will use `vwantest` in `westeurope` along this demo. Use a Powershell console such as Azure Cloud Shell:
+
+```
+Azure:/
+PS Azure:\> $rg="vwantest"
+Azure:/
+PS Azure:\> New-AzResourceGroup -name $rg -Location westeurope
+
+ResourceGroupName : vwantest
+Location          : westeurope
+ProvisioningState : Succeeded
+Tags              :
+ResourceId        : /subscriptions/.../resourceGroups/vwantest
+```
+
+or from Azure CLI, if you prefer: 
 
 ```
 az group create -n vwantest -l westeurope
 ```
 
-Now you can issue this command (on a Linux system) to deploy the template with a Linux NVA: 
+### Option 1: Linux VPN device on-premises
+
+Now you can issue this command from a Powershell console (such as Azure Cloud Shell):
+
+```
+Azure:/
+PS Azure:\> $SecurePassword=ConvertTo-SecureString 'yoursupersecretpassword' –asplaintext –Force
+Azure:/
+PS Azure:\> New-AzResourceGroupDeployment -ResourceGroupName $rg `
+   -TemplateUri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vwan_quickstart.json `
+   -nvaPwd $SecurePassword
+```
+  
+If you prefer to use the Azure CLI on a Linux prompt you can use this syntax: 
 
 ```
 az group deployment create -g vwantest --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vwan_quickstart.json --parameters '{"nvaPwd":{"value":"yoursupersecretpassword"}}'
@@ -35,17 +63,31 @@ az group deployment create -g vwantest --template-uri https://raw.githubusercont
 
 The default NVA type is a Linux Ubuntu VM with Quagga (for BGP) and StrongSwan (for VPN). An initial StrongSwan configuration is provided, but you will have to update it with the right parameters corresponding to your VPN site (public IP address, BGP peering IP address, Pre-Shared-Key).
 
-If you want to deploy a Cisco CSR 1000v router as NVA (you do not need any license, since all functionality is active in eval mode, only bandwidth is limited), you can use the parameter nvaType like this:
+### Option 2: Cisco CSR 1000v VPN device on-premises
+
+If you want to deploy a Cisco CSR 1000v router as NVA to simulate on-premises devices (you do not need any license, since all functionality is active in eval mode, only bandwidth is limited), you can use the parameter nvaType like this:
 
 ```
-az group deployment create -g vwantest --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vwan_quickstart.json --parameters '{"nvaPwd":{"value":"yoursupersecretpassword"}, "nvaType":{"value":"cisco_csr"}, }'
+Azure:/
+PS Azure:\> $SecurePassword=ConvertTo-SecureString 'yoursupersecretpassword' –asplaintext –Force
+Azure:/
+PS Azure:\> New-AzResourceGroupDeployment -ResourceGroupName $rg `
+   -TemplateUri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vwan_quickstart.json `
+   -nvaPwd $SecurePassword `
+   -nvaType 'cisco_csr'
+```
+
+or from CLI (Linux):
+
+```
+az group deployment create -g vwantest --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vwan_quickstart.json --parameters '{"nvaPwd":{"value":"yoursupersecretpassword"}, "nvaType":{"value":"cisco_csr"}}'
 ```
 
 The password you provided in the template will be used for authentication in the NVA, for the user `lab-user` (so it need to be compliant with the VM password policy: 12-character long, numbers, letters, special sign), as well as Pre-Shared Key for VPN. In a production environment you would probably separate both (the ARM template allows to do that).
 
 # Inspect created resources
 
-You can now go to the portal and have a look at the Virtual WAN resources, or you can do it using Powershell. Azure CLI is not supported yet.
+You can now go to the portal and have a look at the Virtual WAN resources, or you can do it using Powershell. Azure CLI is not supported yet. In case you do not have Powershell installed in your machine, you can leverage the Azure Cloud Shell in https://shell.azure.com.
 
 ## Using Powershell
 
@@ -100,22 +142,22 @@ ProvisioningState : Succeeded
 
 # Configure your NVA
 
-You can get the public IP address of your NVA looking at the public IP addresses in your resource group, for example like this using the CLI:
-
-```
-$ az network public-ip list -g vwantest -o tsv --query [].[name,ipAddress]
-myCsr-pip       51.144.93.129
-```
-
-or using PowerShell:
+You can get the public IP address of your NVA looking at the public IP addresses in your resource group, for example like this using Powershell:
 
 ```
 Azure:/
-PS Azure:\> Get-AzPublicIpAddress -ResourceGroupName vwantest | ft Name,IpAddress
+PS Azure:\> Get-AzPublicIpAddress -ResourceGroupName $rg | ft Name,IpAddress
 
 Name      IpAddress
 ----      ---------
 myCsr-pip 51.144.93.129
+```
+
+or using CLI:
+
+```
+$ az network public-ip list -g vwantest -o tsv --query [].[name,ipAddress]
+myCsr-pip       51.144.93.129
 ```
 
 You can download the VPN configuration from the Azure Portal, in the Overview of your virtual WAN. After your deployment has finalized, you can download a JSON file that contains important information about your environment.
@@ -225,7 +267,7 @@ interface Tunnel0
  ip tcp adjust-mss 1350
  tunnel source GigabitEthernet1
  tunnel mode ipsec ipv4
- tunnel destination 52.142.116.152
+ tunnel destination 1.2.3.4
  tunnel protection ipsec profile azure-vti
 exit
 !
@@ -291,14 +333,26 @@ Neighbor        V           AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State
 We will now deploy a VM in Azure, and check we have connectivity over the IPsec tunnel.
 
 ```
+PS Azure:\> New-AzResourceGroupDeployment -ResourceGroupName $rg `
+   -TemplateUri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vmLinux.json `
+   -vmName 'testvm1' `
+   -vmPwd $SecurePassword `
+   -vnetName 'testvnet1' `
+   -vnetPrefix '10.0.1.0/24' `
+   -subnetPrefix '10.0.1.0/26'
+```
+
+Or if you prefer CLI:
+
+```
  az group deployment create -g vwantest --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vmLinux.json --parameters '{"vmPwd":{"value":"Microsoft123!"}, "vnetName":{"value":"testvnet1"}, "vnetPrefix":{"value":"10.0.1.0/24"}, "subnetPrefix":{"value":"10.0.1.0/26"}, "vmName":{"value":"testvm1"}}'
 ```
 
-You need to configure the peering between the Vnet and the Hub in the portal. The reason is because the Vnet associated to the virtual hub is not in the same subscription:
+You need to configure the peering between the Vnet and the Hub in the portal (from the virtual Hub screen). The reason is because the Vnet associated to the virtual hub is not in the same subscription:
 
 ```
 Azure:/
-PS Azure:\> Get-AzVirtualNetworkPeering -ResourceGroupName vwantest -VirtualNetworkName testvnet1
+PS Azure:\> Get-AzVirtualNetworkPeering -ResourceGroupName $rg -VirtualNetworkName testvnet1
 
 Name                             : RemoteVnetToHubPeering_ac259ec9-0aca-4d2a-8431-9f67bf6e58f3
 Id                               : /subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwantest/providers/Microsoft.Network/virtualNetworks/testvnet1/virtualNetworkPeerings/RemoteVnetToHubPeering
@@ -324,6 +378,24 @@ Notice the settings of the peering, especially how UseRemoteGateways is set to T
 Let us have a look at the effective routing table of our test VM:
 
 ```
+Azure:/
+PS Azure:\> Get-AzEffectiveRouteTable -NetworkInterfaceName testvm1-nic -ResourceGroupName $rg | ft
+
+Name State  Source                AddressPrefix      NextHopType           NextHopIpAddress
+---- -----  ------                -------------      -----------           ----------------
+     Active Default               {10.0.1.0/24}      VnetLocal             {}
+     Active Default               {192.168.0.0/24}   VNetPeering           {}
+     Active VirtualNetworkGateway {192.168.100.4/32} VirtualNetworkGateway {192.168.0.4}
+     Active Default               {0.0.0.0/0}        Internet              {}
+     Active Default               {10.0.0.0/8}       None                  {}
+     Active Default               {100.64.0.0/10}    None                  {}
+     Active Default               {172.16.0.0/12}    None                  {}
+     Active Default               {192.168.0.0/16}   None                  {}
+```
+
+Or with Azure CLI if you prefer:
+
+```
 $ az network nic list -g vwantest -o tsv --query [].name
 myCsr-nic
 testvm1-nic
@@ -338,27 +410,35 @@ $ az network nic show-effective-route-table -n testvm1-nic -g vwantest | jq -r '
 192.168.0.0/16  null    None
 ```
 
-Or much easier with PowerShell:
+Notice the entry for 192.168.100.4 of the type VirtualNetworkGateway where the next hop is 192.168.0.4, and how 192.168.0.0/24 is reachable over the Vnet Peering conenction.
+
+You can now SSH to the VM in the new Vnet and try to reach the onprem VPN gateway (192.168.100.4):
 
 ```
 Azure:/
-PS Azure:\> Get-AzEffectiveRouteTable -NetworkInterfaceName testvm1-nic -ResourceGroupName vwantest | ft
+PS Azure:\> Get-AzPublicIpAddress -ResourceGroupName $rg | ft Name,IpAddress
 
-Name State  Source                AddressPrefix      NextHopType           NextHopIpAddress
----- -----  ------                -------------      -----------           ----------------
-     Active Default               {10.0.1.0/24}      VnetLocal             {}
-     Active Default               {192.168.0.0/24}   VNetPeering           {}
-     Active VirtualNetworkGateway {192.168.100.4/32} VirtualNetworkGateway {192.168.0.4}
-     Active Default               {0.0.0.0/0}        Internet              {}
-     Active Default               {10.0.0.0/8}       None                  {}
-     Active Default               {100.64.0.0/10}    None                  {}
-     Active Default               {172.16.0.0/12}    None                  {}
-     Active Default               {192.168.0.0/16}   None                  {}
+Name        IpAddress
+----        ---------
+myCsr-pip   51.144.97.23
+testvm1-pip 51.144.122.127
+
+Azure:/
+PS Azure:\> ssh lab-user@51.144.122.127
+...output omitted...
+lab-user@testvm1:~$ ping 192.168.100.4
+PING 192.168.100.4 (192.168.100.4) 56(84) bytes of data.
+64 bytes from 192.168.100.4: icmp_seq=1 ttl=255 time=7.55 ms
+64 bytes from 192.168.100.4: icmp_seq=2 ttl=255 time=4.82 ms
+64 bytes from 192.168.100.4: icmp_seq=3 ttl=255 time=4.52 ms
+^C
+--- 192.168.100.4 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2003ms
+rtt min/avg/max/mdev = 4.520/5.630/7.551/1.365 ms
+lab-user@testvm1:~$
 ```
 
-Notice the entry for 192.168.100.4 of the type VirtualNetworkGateway where the next hop is 192.168.0.4, and how 192.168.0.0/24 is reachable over the Vnet Peering conenction.
-
-You can now SSH to the VM in the new Vnet and try to reach the onprem VPN gateway (192.168.0.4):
+or with Azure CLI:
 
 ```
 $ az network public-ip list -g vwantest -o tsv --query [].[name,ipAddress]
@@ -380,10 +460,32 @@ PING 192.168.100.4 (192.168.100.4) 56(84) bytes of data.
 Let us simulate a hub&spoke network design in Azure. For that we will add a second vnet, that we will peer to the first one: 
 
 ```
+PS Azure:\> New-AzResourceGroupDeployment -ResourceGroupName $rg `
+   -TemplateUri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vmLinux.json `
+   -vmName 'testvm2' `
+   -vmPwd $SecurePassword `
+   -vnetName 'testvnet2' `
+   -vnetPrefix '10.0.2.0/24' `
+   -subnetPrefix '10.0.2.0/26'
+```
+
+Or with Azure CLI:
+
+```
  az group deployment create -g vwantest --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vmLinux.json --parameters '{"vmPwd":{"value":"Microsoft123!"}, "vnetName":{"value":"testvnet2"}, "vnetPrefix":{"value":"10.0.2.0/24"}, "subnetPrefix":{"value":"10.0.2.0/26"}, "vmName":{"value":"testvm2"}}'
 ```
 
 The ARM template does not create the peerings, so let us do it manually:
+
+```
+$vnet1 = Get-AzVirtualNetwork -ResourceGroupName $rg -Name testvnet1
+$vnet2 = $(Get-AzVirtualNetwork -ResourceGroupName $rg -Name testvnet2
+Add-AzVirtualNetworkPeering -Name Vnet1toVnet2 -VirtualNetwork $vnet1 -RemoteVirtualNetworkId $vnet2.Id -AllowForwardedTraffic
+Add-AzVirtualNetworkPeering -Name Vnet2toVnet1 -VirtualNetwork $vnet1 -RemoteVirtualNetworkId $vnet2.Id
+```
+
+
+Or with CLI:
 
 ```
 $ az network vnet list -g vwantest -o table --query [].[name,id]
