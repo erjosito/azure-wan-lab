@@ -279,12 +279,9 @@ router bgp 65101
  neighbor 192.168.0.4 update-source GigabitEthernet1
 !
 ip route 192.168.0.0 255.255.255.0 Tunnel0
-ip route 10.0.0.0 255.0.0.0 Tunnel0
 ```
 
 Do not forget to save your configuration!
-
-**Note:** The last route to 10.0.0.0/8 is in order to route to Azure Vnets that will be created later in this lab, since BGP is not working yet
 
 Now you can verify that the IPSec tunnel has been established. The first step is verifying that the state of your IKE Security Association is `READY`:
 
@@ -315,18 +312,27 @@ If you remove the filter (`show crypto ipsec sa`) to get additional information 
 
 Lastly, verify that the BGP adjacency is up:
 
-**NOT WORKING YET, BUG??? (I have a case opened)**
-
 ```
-myCsr#show ip bgp summary
-BGP router identifier 192.168.100.4, local AS number 65101
-BGP table version is 1, main routing table version 1
-
+myCsr#sh ip bgp summ
+...
 Neighbor        V           AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
-192.168.0.4     4        65515       0       0        1    0    0 never    Idle
+192.168.0.4     4        65515       3       2        1    0    0 00:00:10        2
 ```
 
-**Note:** You could add VPN/BGP connections to both gateway instances, to have redundancy at the Azure Virtual Network Gateway level.
+As you can see, the BGP adjacency is up, and we have received two prefixes. Let us have a look at them:
+
+```
+myCsr#sh ip bgp
+BGP table version is 3, local router ID is 192.168.100.4
+...
+     Network          Next Hop            Metric LocPrf Weight Path
+ r>   192.168.0.0      192.168.0.4                            0 65515 i
+ r>   192.168.100.4/32 192.168.0.4                            0 65515 i
+```
+
+Unsurprisingly enough, it is just information about the router ID itself that the Azure Virtual WAN instance is using (192.168.100.4), but no prefix from anything else, since there is no Vnet attached yet. We will do that in our next step.
+
+**Note:** You could add a new VPN/BGP connection to the second gateway instance, to have redundancy at the Azure Virtual Network Gateway level.
 
 # Deploy a test vnet
 
@@ -455,6 +461,16 @@ PING 192.168.100.4 (192.168.100.4) 56(84) bytes of data.
 ^C
 ```
 
+We can have a look at the routing table on our on-premises device as well:
+
+```
+myCsr#show ip route bgp
+...
+      10.0.0.0/24 is subnetted, 1 subnets
+B        10.0.1.0 [20/0] via 192.168.0.4, 00:06:05
+```
+
+
 # Deploy a second test vnet, peered to the first one
 
 Let us simulate a hub&spoke network design in Azure. For that we will add a second vnet, that we will peer to the first one: 
@@ -494,6 +510,7 @@ Column1    Column2
 myVnet     /subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwantest/providers/Microsoft.Network/virtualNetworks/myVnet
 testvnet1  /subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwantest/providers/Microsoft.Network/virtualNetworks/testvnet1
 testvnet2  /subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwantest/providers/Microsoft.Network/virtualNetworks/testvnet2
+$
 $ testvnet1id=$(az network vnet show -n testvnet1 -g vwantest --query id -o tsv)
 $ testvnet2id=$(az network vnet show -n testvnet2 -g vwantest --query id -o tsv)
 $ az network vnet peering create -g vwantest -n Vnet1ToVnet2 --vnet-name testvnet1 --remote-vnet-id $testvnet2id --allow-vnet-access --allow-gateway-transit
@@ -523,8 +540,8 @@ Name State  Source  AddressPrefix    NextHopType NextHopIpAddress
      Active Default {192.168.0.0/16} None        {}
 ```
 
+As expected, no route for 192.168.100.4/32 and no route for 192.168.0.0/24, since in this case testvnet2 and the vnet in the Virtual Hub act as two spokes. Additionally, if you were to check the routing table in the on-prem router, you would see that the spoke router is not known there. The problem here is that even if you wanted to install an UDR, which next hop would you define? The only possibility would be having an NVA in testvnet1, that would then forward the traffic to the virtual hub. Let us use the VM we had in the first Vnet as appliance, and forward traffic to it.
 
-As expected, no route for 192.168.100.4/32 and no route for 192.168.0.0/24, since in this case testvnet2 and the vnet in the Virtual Hub act as two spokes. The problem here is that even if you wanted to install an UDR, which next hop would you define? The only possibility would be having an NVA in testvnet1, that would then forward the traffic to the virtual hub. You would probably have to install an UDR in the virtual hub to be able to go back to testvnet2.
 
 ```
 $ az network route-table create -n testvnet2-routes -g vwantest
@@ -573,6 +590,17 @@ Type                      : Microsoft.Network/virtualHubs
 ProvisioningState         : Succeeded
 ```
 
+You can verify the routes in your Virtual Hub with this command:
+
+```
+PS C:\Users\jomore> $(Get-AzVirtualHub -ResourceGroupName vwantest -Name myVirtualHub).RouteTable.Routes
+
+AddressPrefixes NextHopIpAddress
+--------------- ----------------
+{10.0.2.0/24}   10.0.1.4
+```
+
+
 Verify routing at the Vnets:
 
 ```
@@ -607,6 +635,80 @@ Name    State  Source  AddressPrefix      NextHopType      NextHopIpAddress
 branch1 Active User    {192.168.100.0/24} VirtualAppliance {10.0.1.4}
 ```
 
+However, if you have a look at your router, there is no additional route learnt from the spoke:
+
+```
+myCsr#sh ip route bgp
+...
+Gateway of last resort is 192.168.100.1 to network 0.0.0.0
+
+      10.0.0.0/24 is subnetted, 1 subnets
+B        10.0.1.0 [20/0] via 192.168.0.4, 04:33:25
+myCsr#
+```
+
+Let us do one last check: the effective Network Security Group rules. For example on the first VM:
+
+```
+Azure:/
+PS Azure:\> $(Get-AzEffectiveNetworkSecurityGroup -NetworkInterfaceName testvm1-nic -ResourceGroupName vwantest).EffectiveSecurityRules | ft
+
+Name                                               Protocol SourcePortRange DestinationPortRange SourceAddressPrefix DestinationAddressPrefix ExpandedSourceAddressPrefix                                     ExpandedDestinationA
+                                                                                                                                                                                                              ddressPrefix
+----                                               -------- --------------- -------------------- ------------------- ------------------------ ---------------------------                                     --------------------
+securityRules/SSH                                  Tcp      {0-65535}       {22-22}              {0.0.0.0/0}         {0.0.0.0/0}              {}                                                              {}
+defaultSecurityRules/AllowVnetInBound              All      {0-65535}       {0-65535}            {VirtualNetwork}    {VirtualNetwork}         {10.0.1.0/24, 10.0.2.0/24, 168.63.129.16/32, 192.168.0.0/24...} {10.0.1.0/24, 10....
+defaultSecurityRules/AllowAzureLoadBalancerInBound All      {0-65535}       {0-65535}            {AzureLoadBalancer} {0.0.0.0/0}              {168.63.129.16/32}                                              {}
+defaultSecurityRules/DenyAllInBound                All      {0-65535}       {0-65535}            {0.0.0.0/0}         {0.0.0.0/0}              {}                                                              {}
+defaultSecurityRules/AllowVnetOutBound             All      {0-65535}       {0-65535}            {VirtualNetwork}    {VirtualNetwork}         {10.0.1.0/24, 10.0.2.0/24, 168.63.129.16/32, 192.168.0.0/24...} {10.0.1.0/24, 10....
+defaultSecurityRules/AllowInternetOutBound         All      {0-65535}       {0-65535}            {0.0.0.0/0}         {Internet}               {}                                                              {1.0.0.0/8, 2.0.0...
+defaultSecurityRules/DenyAllOutBound               All      {0-65535}       {0-65535}            {0.0.0.0/0}         {0.0.0.0/0}              {}                                                              {}
+
+```
+
+Since we did not get the full list of expanded prefixes for the NSG tag VirtualNetwork, we can focus on one of the entries:
+
+```
+Azure:/
+PS Azure:\> $(Get-AzEffectiveNetworkSecurityGroup -NetworkInterfaceName testvm1-nic -ResourceGroupName vwantest).EffectiveSecurityRules[1].ExpandedSourceAddressPrefix
+10.0.1.0/24
+10.0.2.0/24
+168.63.129.16/32
+192.168.0.0/24
+192.168.100.4/32
+```
+
+You can draw a couple of conclusions of the previous outputs:
+
+* As expected, both Vnet IP ranges (`10.0.1.0/24` and `10.0.2.0/24`) as well as the Virtual Hub (192.168.0.0/24) are included
+* Note that 
+
+Let us check the same in the spoke. First an overview on the effective rules:
+
+```
+PS C:\Users\jomore> $(Get-AzEffectiveNetworkSecurityGroup -NetworkInterfaceName testvm2-nic -ResourceGroupName vwantest).EffectiveSecurityRules | ft
+
+Name                                               Protocol SourcePortRange DestinationPortRange SourceAddressPrefix DestinationAddressPrefix ExpandedSourceAddressPrefix                                    ExpandedDestinationAd
+                                                                                                                                                                                                             dressPrefix
+----                                               -------- --------------- -------------------- ------------------- ------------------------ ---------------------------                                    ---------------------
+securityRules/SSH                                  Tcp      {0-65535}       {22-22}              {0.0.0.0/0}         {0.0.0.0/0}              {}                                                             {}
+defaultSecurityRules/AllowVnetInBound              All      {0-65535}       {0-65535}            {VirtualNetwork}    {VirtualNetwork}         {10.0.1.0/24, 10.0.2.0/24, 168.63.129.16/32, 192.168.100.0/24} {10.0.1.0/24, 10.0...
+defaultSecurityRules/AllowAzureLoadBalancerInBound All      {0-65535}       {0-65535}            {AzureLoadBalancer} {0.0.0.0/0}              {168.63.129.16/32}                                             {}
+defaultSecurityRules/DenyAllInBound                All      {0-65535}       {0-65535}            {0.0.0.0/0}         {0.0.0.0/0}              {}                                                             {}
+defaultSecurityRules/AllowVnetOutBound             All      {0-65535}       {0-65535}            {VirtualNetwork}    {VirtualNetwork}         {10.0.1.0/24, 10.0.2.0/24, 168.63.129.16/32, 192.168.100.0/24} {10.0.1.0/24, 10.0...
+defaultSecurityRules/AllowInternetOutBound         All      {0-65535}       {0-65535}            {0.0.0.0/0}         {Internet}               {}                                                             {1.0.0.0/8, 2.0.0....
+defaultSecurityRules/DenyAllOutBound               All      {0-65535}       {0-65535}            {0.0.0.0/0}         {0.0.0.0/0}              {}                                                             {}
+```
+
+Here we do not need to look further. Since there is no ellipsis (three dots or `...`) in the `ExpandedSourceAddressPrefix` field, we do not need to look forward into it. From the previous output you can already see that only the virtual site IP address space (`192.168.100.0/24`) is there. Note this is coming from the UDR we previously defined, not from the Virtual WAN configuration (otherwise we would see `192.168.100.4/32`, as in the hub vnet)
+
+So you have two options: either you peer the spoke to the virtual hub, as [the documentation](https://docs.microsoft.com/en-us/azure/virtual-wan/virtual-wan-faq#is-there-support-for-bgp) suggests, or you add a static route to the router so that it knows how to reach the spoke:
+
+```
+myCsr(config)#ip route 10.0.2.0 255.255.255.0 10.0.1.4
+```
+
+
 Et voilâ!
 
 ```
@@ -619,3 +721,70 @@ PING 192.168.100.4 (192.168.100.4) 56(84) bytes of data.
 64 bytes from 192.168.100.4: icmp_seq=5 ttl=254 time=6.04 ms
 ```
 
+
+Let us do something, let us inject a new route from our branch, and see what happens. We will create a loopback interface in our router, and redistribute the connected route:
+
+```
+myCsr#conf t
+Enter configuration commands, one per line.  End with CNTL/Z.
+myCsr(config)#int lo0
+myCsr(config-if)#ip add 172.16.0.1 255.255.255.0
+myCsr(config-if)#no shut
+myCsr(config-if)#router bgp 65101
+myCsr(config-router)#redistribute connected
+myCsr(config-router)# exit
+myCsr#
+```
+
+Now let us see if the route pops up in Vnet1:
+
+```
+Azure:/ 
+PS Azure:\> Get-AzEffectiveRouteTable -NetworkInterfaceName testvm1-nic -ResourceGroupName vwantest | ft
+
+Name State  Source                AddressPrefix      NextHopType           NextHopIpAddress
+---- -----  ------                -------------      -----------           ----------------
+     Active Default               {10.0.1.0/24}      VnetLocal             {}
+     Active Default               {192.168.0.0/24}   VNetPeering           {}
+     Active Default               {10.0.2.0/24}      VNetPeering           {}
+     Active VirtualNetworkGateway {192.168.100.4/32} VirtualNetworkGateway {192.168.0.4}
+     Active VirtualNetworkGateway {192.168.100.0/26} VirtualNetworkGateway {192.168.0.4}
+     Active VirtualNetworkGateway {172.16.0.0/24}    VirtualNetworkGateway {192.168.0.4}
+     Active Default               {0.0.0.0/0}        Internet              {}
+     Active Default               {10.0.0.0/8}       None                  {}
+     Active Default               {100.64.0.0/10}    None                  {}
+     Active Default               {172.16.0.0/12}    None                  {}
+     Active Default               {192.168.0.0/16}   None                  {}
+```
+
+Excellent (note the 172.16.0.0/24 prefix, not the /12)! What about Vnet2, the spoke?
+
+```
+Oh, it is not there. Again, because Vnet peering is not propagating routes over two peerings (from spoke to spoke). Here again the same solution: either peering the spoke directly to the hub, or configuring an UDR in the spoke for the remote network (172.16.0.0/24)
+```
+
+What about the NSG tag resolution? Let us check the hub first:
+
+```
+Azure:/ 
+PS Azure:\> $(Get-AzEffectiveNetworkSecurityGroup -NetworkInterfaceName testvm1-nic -ResourceGroupName vwantest).EffectiveSecurityRules[1].ExpandedSourceAddressPrefix
+10.0.1.0/24
+10.0.2.0/24
+168.63.129.16/32
+172.16.0.0/24
+192.168.0.0/24
+192.168.100.0/26
+```
+
+Yepp, in the hub the VirtualNetwork tag is correctly resolved including the remote branch IP prefix (`172.16.0.0/24`). By the way, you can see that our branch is now advertising another additional route, the `192.168.100.0/26` (it is the subnet where the router's interface is configured). What about the spoke?
+
+```
+Azure:/ 
+PS Azure:\> $(Get-AzEffectiveNetworkSecurityGroup -NetworkInterfaceName testvm2-nic -ResourceGroupName vwantest).EffectiveSecurityRules[1].ExpandedSourceAddressPrefix
+10.0.1.0/24
+10.0.2.0/24
+168.63.129.16/32
+192.168.100.0/24
+```
+
+As you might have expected, not there (only the IP address range statically defined in our UDR `192.168.100.0/24` is included, but nothing coming from the Virtual WAN).
