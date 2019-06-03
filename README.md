@@ -194,7 +194,7 @@ Note that there are two instances of the gateway. In the case above:
 * Instance0: private IP 192.168.0.4, public IP 1.2.3.4
 * Instance1: private IP 192.168.0.5, public IP 5.6.7.8
 
-You must use the public IP to establish the VPN tunnel, and the private IP for your BPG adjacency. Make sure that you do not mix the values. For example, if you establish a VPN tunnel to Instance0 and over that tunnel you try to establish a BGP adjacenty to 192.168.0.5, that will not work.
+You must use the public IP to establish the VPN tunnel, and the private IP for your BGP adjacency. Make sure that you do not mix the values. For example, if you establish a VPN tunnel to Instance0 and over that tunnel you try to establish a BGP adjacency to 192.168.0.5, that will not work.
 
 Notice that you can connect to both instances at the same time for redundancy. We will see that later in the lab.
 
@@ -790,9 +790,27 @@ PS Azure:\> $(Get-AzEffectiveNetworkSecurityGroup -NetworkInterfaceName testvm2-
 As you might have expected, not there (only the IP address range statically defined in our UDR `192.168.100.0/24` is included, but nothing coming from the Virtual WAN).
 
 
-# Deploy a second hub and branch
+# Deploy a VWAN with two hubs and one branch in each hub
 
 
 ```
-az group deployment create -g vwantest --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vwan_quickstart.json --parameters "{\"nvaPwd\":{\"value\":\"yoursupersecretpassword\"}, \"nvaType\":{\"value\":\"cisco_csr\"}, \"hubName\":{\"value\":\"myVirtualHub2\"}, \"hubPrefix\":{\"value\":\"192.168.50.0/24\"}, \"hubLocation\":{\"value\":\"westus2\"}, \"siteName\":{\"value\":\"myVirtualSite2\"}, \"siteAsn\":{\"value\":65102}, \"branchVnetPrefix\":{\"value\": \"192.168.50.0/24\"}, \"branchSubnetPrefix\":{\"value\": \"192.168.50.0/26\"}}"
+# Initialization
+rg=vwan
+password=yoursupersecurepassword # Or better, take it from your Key Vault
+az group create -n $rg -l westeurope
+
+# Create VWAN, hubs, sites, NVAs to simulate branches
+az group deployment create -n hub1 -g $rg --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vwan_quickstart.json --parameters "{\"nvaPwd\":{\"value\":\"$password\"}, \"nvaType\":{\"value\":\"cisco_csr\"}, \"hubName\":{\"value\":\"myHub1\"}, \"hubPrefix\":{\"value\":\"192.168.1.0/24\"}, \"hubLocation\":{\"value\":\"westeurope\"}, \"siteName\":{\"value\":\"mySite1\"}, \"siteAsn\":{\"value\":65101}, \"branchVnetPrefix\":{\"value\": \"192.168.101.0/24\"}, \"branchSubnetPrefix\":{\"value\": \"192.168.101.0/26\"}}"
+az group deployment create -n hub2 -g $rg --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vwan_quickstart.json --parameters "{\"nvaPwd\":{\"value\":\"$password\"}, \"nvaType\":{\"value\":\"cisco_csr\"}, \"hubName\":{\"value\":\"myHub2\"}, \"hubPrefix\":{\"value\":\"192.168.2.0/24\"}, \"hubLocation\":{\"value\":\"westus2\"}, \"siteName\":{\"value\":\"mySite2\"}, \"siteAsn\":{\"value\":65102}, \"branchVnetPrefix\":{\"value\": \"192.168.102.0/24\"}, \"branchSubnetPrefix\":{\"value\": \"192.168.102.0/26\"}}"
+
+# Create vnets to be attached to the hub
+az group deployment create -g $rg --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vmLinux.json --parameters "{\"vmPwd\":{\"value\":\"$password\"}, \"vnetName\":{\"value\":\"testvnet1\"}, \"vnetPrefix\":{\"value\":\"10.0.1.0/24\"}, \"subnetPrefix\":{\"value\":\"10.0.1.0/26\"}, \"vmName\":{\"value\":\"testvm1\"}, \"location\":{\"value\":\"westeurope\"}}"
+az group deployment create -g $rg --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vmLinux.json --parameters "{\"vmPwd\":{\"value\":\"$password\"}, \"vnetName\":{\"value\":\"testvnet2\"}, \"vnetPrefix\":{\"value\":\"10.0.2.0/24\"}, \"subnetPrefix\":{\"value\":\"10.0.2.0/26\"}, \"vmName\":{\"value\":\"testvm2\"}, \"location\":{\"value\":\"westus2\"}}"
 ```
+
+To do after this:
+
+1. Download the JSON config file with the IP addresses for the hubs and configure the NVAs
+2. Add the testvnet1 and testvnet2 vnets to their respective hubs
+3. Redistribute some routes from the NVAs
+4. Investigate effective routing tables (`az network nic show-effective-route-table -n testvm1-nic -g $rg -o table`)

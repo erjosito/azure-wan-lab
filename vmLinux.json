@@ -38,6 +38,10 @@
         "vmSize": {
             "defaultValue": "Standard_B1s",
             "type": "string"
+        },
+        "location": {
+            "type": "string",
+            "defaultValue": "[resourceGroup().location]"
         }
     },
     "variables": {
@@ -85,7 +89,7 @@
             "type": "Microsoft.Network/virtualNetworks",
             "name": "[parameters('vnetName')]",
             "apiVersion": "[variables('networkApiVersion')]",
-            "location": "[resourceGroup().location]",
+            "location": "[parameters('location')]",
             "properties": {
                 "addressSpace": {
                     "addressPrefixes": [
@@ -109,7 +113,7 @@
 			"type": "Microsoft.Compute/availabilitySets",
 			"name": "[variables('avSetName')]",
             "apiVersion": "[variables('computeApiVersion')]",
-			"location": "[resourceGroup().location]",
+            "location": "[parameters('location')]",
 			"properties": {
 				"platformUpdateDomainCount": 2,
 				"platformFaultDomainCount": 2
@@ -123,7 +127,7 @@
             "type": "Microsoft.Compute/virtualMachines",
             "name": "[parameters('vmName')]",
             "apiVersion": "[variables('computeApiVersion')]",
-            "location": "[resourceGroup().location]",
+            "location": "[parameters('location')]",
             "properties": {
 				"availabilitySet": {
 					"id": "[resourceId('Microsoft.Compute/availabilitySets', variables('avSetName'))]"
@@ -180,7 +184,7 @@
             "name": "[variables('nsgName')]",
             "type": "Microsoft.Network/networkSecurityGroups",
             "apiVersion": "[variables('networkApiVersion')]",
-            "location": "[resourceGroup().location]",
+            "location": "[parameters('location')]",
             "properties": {
                 "securityRules": "[variables('nsgRules')]"
             },
@@ -191,7 +195,7 @@
             "type": "Microsoft.Network/publicIPAddresses",
             "name": "[variables('pipName')]",
             "apiVersion": "[variables('networkApiVersion')]",
-            "location": "[resourceGroup().location]",
+            "location": "[parameters('location')]",
             "properties": {
                 "publicIPAllocationMethod": "Dynamic",
                 "idleTimeoutInMinutes": 4
@@ -204,7 +208,7 @@
             "type": "Microsoft.Network/networkInterfaces",
             "name": "[variables('nicName')]",
             "apiVersion": "[variables('networkApiVersion')]",
-            "location": "[resourceGroup().location]",
+            "location": "[parameters('location')]",
             "properties": {
                 "ipConfigurations": [
                     {

@@ -100,6 +100,7 @@
             "cisco_csr": {
                 "uri": "[uri(deployment().properties.templateLink.uri, 'nvaCSR1kv.json')]",
                 "parameters": {
+                    "location": {"value": "[parameters('hubLocation')]"},
                     "adminUsername": {"value": "lab-user"},
                     "adminPassword": {"value": "[parameters('nvaPwd')]"},
                     "vnetPrefix": {"value": "[parameters('branchVnetPrefix')]"},
