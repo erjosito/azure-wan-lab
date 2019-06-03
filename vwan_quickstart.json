@@ -64,7 +64,21 @@
             "metadata": {
                 "description": "Password to be configured in the NVA (user is lab-user)"
             }
-        }        
+        },
+        "branchVnetPrefix": {
+            "type": "string",
+            "defaultValue": "192.168.100.0/24",
+            "metadata": {
+                "description": "Prefix to be configured in the branch vnet (where the target NVA will be deployed)"
+            }
+        },
+        "branchSubnetPrefix": {
+            "type": "string",
+            "defaultValue": "192.168.100.0/26",
+            "metadata": {
+                "description": "Prefix to be configured in the branch subnet (where the target NVA will be deployed)"
+            }
+        }
     },
     "variables": {
         "networkApiVersion": "2018-08-01",
@@ -73,16 +87,14 @@
         "enableBgp": "true",
         "vpnConnectionName": "[concat(parameters('hubName'), '-connection')]",
         "vpnGwName": "[concat(parameters('hubName'), '-vpnGw')]",
-        "branchVnetPrefix": "192.168.100.0/24",
-        "branchSubnetPrefix": "192.168.100.0/26",
         "nvaSettings": {
             "linux": {
                 "uri": "[uri(deployment().properties.templateLink.uri, 'nvaLinux.json')]",
                 "parameters": {
                     "vmUsr": {"value": "lab-user"},
                     "vmPwd": {"value": "[parameters('nvaPwd')]"},
-                    "vnetPrefix": {"value": "[variables('branchVnetPrefix')]"},
-                    "subnetPrefix": {"value": "[variables('branchSubnetPrefix')]"}
+                    "vnetPrefix": {"value": "[parameters('branchVnetPrefix')]"},
+                    "subnetPrefix": {"value": "[parameters('branchSubnetPrefix')]"}
                 }
             },
             "cisco_csr": {
@@ -90,8 +102,9 @@
                 "parameters": {
                     "adminUsername": {"value": "lab-user"},
                     "adminPassword": {"value": "[parameters('nvaPwd')]"},
-                    "vnetPrefix": {"value": "[variables('branchVnetPrefix')]"},
-                    "subnetPrefix": {"value": "[variables('branchSubnetPrefix')]"}
+                    "vnetPrefix": {"value": "[parameters('branchVnetPrefix')]"},
+                    "subnetPrefix": {"value": "[parameters('branchSubnetPrefix')]"},
+                    "vmName": {"value": "[concat(parameters('siteName'), '-nva')]"}
                 }
             }
         }

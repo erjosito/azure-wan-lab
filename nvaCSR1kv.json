@@ -7,7 +7,7 @@
             "defaultValue": "myCsr"
         },
         "vnetName": {
-            "defaultValue": "myVnet",
+            "defaultValue": "[concat(parameters('vmName'), '-vnet')]",
             "type": "string"
         },
         "vnetPrefix": {
@@ -31,7 +31,7 @@
             "defaultValue": "lab-user"
         },
         "adminPassword": {
-            "type": "secureString"
+            "type": "securestring"
         }
     },
     "variables": {

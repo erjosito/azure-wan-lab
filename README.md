@@ -788,3 +788,11 @@ PS Azure:\> $(Get-AzEffectiveNetworkSecurityGroup -NetworkInterfaceName testvm2-
 ```
 
 As you might have expected, not there (only the IP address range statically defined in our UDR `192.168.100.0/24` is included, but nothing coming from the Virtual WAN).
+
+
+# Deploy a second hub and branch
+
+
+```
+az group deployment create -g vwantest --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vwan_quickstart.json --parameters "{\"nvaPwd\":{\"value\":\"yoursupersecretpassword\"}, \"nvaType\":{\"value\":\"cisco_csr\"}, \"hubName\":{\"value\":\"myVirtualHub2\"}, \"hubPrefix\":{\"value\":\"192.168.50.0/24\"}, \"hubLocation\":{\"value\":\"westus2\"}, \"siteName\":{\"value\":\"myVirtualSite2\"}, \"siteAsn\":{\"value\":65102}, \"branchVnetPrefix\":{\"value\": \"192.168.50.0/24\"}, \"branchSubnetPrefix\":{\"value\": \"192.168.50.0/26\"}}"
+```
