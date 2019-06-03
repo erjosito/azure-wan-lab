@@ -43,7 +43,7 @@
         "computeApiVersion": "2018-06-01",
         "storageApiVersion": "2018-07-01",
         "pipName": "[concat(parameters('vmName'), '-pip')]",
-        "pipType": "Dynamic",
+        "pipType": "Static",
         "pipSku": "Basic",
         "nicName": "[concat(parameters('vmName'), '-nic')]",
         "nsgName": "[concat(parameters('vmName'), '-nsg')]",

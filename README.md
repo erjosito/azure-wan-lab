@@ -278,7 +278,7 @@ router bgp 65101
  neighbor 192.168.0.4 ebgp-multihop 5
  neighbor 192.168.0.4 update-source GigabitEthernet1
 !
-ip route 192.168.0.0 255.255.255.0 Tunnel0
+ip route 192.168.0.4 255.255.255.255 Tunnel0
 ```
 
 Do not forget to save your configuration!
@@ -405,7 +405,7 @@ Or with Azure CLI if you prefer:
 $ az network nic list -g vwantest -o tsv --query [].name
 myCsr-nic
 testvm1-nic
-$ az network nic show-effective-route-table -n testvm1-nic -g vwantest | jq -r '.value[] | "\(.addressPrefix[0])\t\(.nextHopIpAddress[0])\t\(.nextHopType)"'
+$ az network nic show-effective-route-table -n testvm1-nic -g vwantest -o table
 10.0.1.0/24     null    VnetLocal
 192.168.0.0/24  null    VNetPeering
 192.168.100.4/32        192.168.0.4     VirtualNetworkGateway
