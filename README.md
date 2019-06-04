@@ -792,6 +792,7 @@ As you might have expected, not there (only the IP address range statically defi
 
 # Deploy a VWAN with two hubs and one branch in each hub
 
+The following commands will deploy a virtual WAN resource, two hubs (one in West Europe, the other one in West US 2), one site associated to each hub, one vnet in each region that you can peer to each hub, and two Cisco CSR NVAs in their own vnet, that you can use to simulate branches:
 
 ```
 # Initialization
@@ -810,7 +811,13 @@ az group deployment create -g $rg --template-uri https://raw.githubusercontent.c
 
 To do after this:
 
-1. Download the JSON config file with the IP addresses for the hubs and configure the NVAs
-2. Add the testvnet1 and testvnet2 vnets to their respective hubs
+1. Download the JSON config file with the IP addresses for the hubs and configure the Cisco NVAs
+2. Associate the testvnet1 and testvnet2 vnets to their respective hubs
 3. Redistribute some routes from the NVAs
-4. Investigate effective routing tables (`az network nic show-effective-route-table -n testvm1-nic -g $rg -o table`)
+4. Investigate effective routing tables in the vnets (`az network nic show-effective-route-table -n testvm1-nic -g $rg -o table`) and in the NVA (`show ip route`)
+
+Optionally, one or more of these:
+
+* Peer testvnet1 and testvnet2 together, and see how that affects routing
+* Peer testvnet1 with hub2, testvnet2 with hub1
+* Connect nva1 to hub2, nva2 to hub1
