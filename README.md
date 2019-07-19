@@ -281,7 +281,7 @@ router bgp 65101
 ip route 192.168.0.4 255.255.255.255 Tunnel0
 ```
 
-Do not forget to save your configuration!
+Do not forget to save your configuration! If you want to use two tunnels, you can find a sample config [here](csr_config_2tunnels.txt), that you can take and replace the values of the public/private addresses of the VPN gateways accordingly.
 
 Now you can verify that the IPSec tunnel has been established. The first step is verifying that the state of your IKE Security Association is `READY`:
 
