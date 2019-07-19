@@ -72,7 +72,7 @@
         "autoShutdownTimeZone": "UTC",
         "autoShutdownNotificationStatus": "Disabled",
         "autoShutdownNotificationLocale": "en",
-        "storageName": "[toLower(concat(uniqueString(resourceGroup().id), 'diag'))]",
+        "storageName": "[toLower(concat('diag', uniqueString(concat(resourceGroup().id), parameters('vmName'))))]",
         "storageId": "[resourceId(resourceGroup().name, 'Microsoft.Storage/storageAccounts', variables('storageName'))]",
         "diagnosticsStorageAccountName": "[variables('storageName')]",
         "diagnosticsStorageAccountId": "[variables('storageId')]",
@@ -218,7 +218,7 @@
         },
         {
             "comments": "Storage Account for diagnostics",
-            "name": "[variables('storageName')]",
+            "name": "[variables('diagnosticsStorageAccountName')]",
             "type": "Microsoft.Storage/storageAccounts",
             "apiVersion": "[variables('storageApiVersion')]",
             "location": "[parameters('location')]",
