@@ -9,21 +9,20 @@ crypto ikev2 policy azure-policy
   exit
 !
 crypto ikev2 keyring azure-keyring
-  peer 1.2.3.4
-    address 1.2.3.4
+  peer 51.105.165.125
+    address 51.105.165.125
     pre-shared-key Microsoft123!
     exit
-  exit
-  peer 5.6.7.8
-    address 5.6.7.8
+  peer 52.137.62.162
+    address 52.137.62.162
     pre-shared-key Microsoft123!
     exit
   exit
 !
 crypto ikev2 profile azure-profile
   match address local interface GigabitEthernet1
-  match identity remote address 1.2.3.4 255.255.255.255
-  match identity remote address 5.6.7.8 255.255.255.255
+  match identity remote address 51.105.165.125 255.255.255.255
+  match identity remote address 52.137.62.162 255.255.255.255
   authentication remote pre-share
   authentication local pre-share
   keyring local azure-keyring
@@ -45,7 +44,7 @@ interface Tunnel0
  ip tcp adjust-mss 1350
  tunnel source GigabitEthernet1
  tunnel mode ipsec ipv4
- tunnel destination 1.2.3.4
+ tunnel destination 51.105.165.125
  tunnel protection ipsec profile azure-vti
 exit
 !
@@ -54,7 +53,7 @@ interface Tunnel1
  ip tcp adjust-mss 1350
  tunnel source GigabitEthernet1
  tunnel mode ipsec ipv4
- tunnel destination 5.6.7.8
+ tunnel destination 52.137.62.162
  tunnel protection ipsec profile azure-vti
 exit
 
@@ -71,3 +70,7 @@ router bgp 65101
 !
 ip route 192.168.1.7 255.255.255.255 Tunnel0
 ip route 192.168.1.6 255.255.255.255 Tunnel1
+!
+end
+!
+wr mem
