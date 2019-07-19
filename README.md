@@ -818,7 +818,14 @@ To do after this:
 
 Optionally, one or more of these:
 
-* Create additional NVAs: `az group deployment create -n nva2 -g $rg --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/nvaCSR1kv.json --parameters "{\"adminPassword\":{\"value\":\"$password\"}, \"adminUsername\":{\"value\":\"lab-user\"}, \"location\":{\"value\":\"westeurope\"}, \"vnetPrefix\":{\"value\": \"192.168.102.0/24\"}, \"subnetPrefix\":{\"value\": \"192.168.102.0/26\"}, \"vmName\":{\"value\": \"mySite2-nva2\"}}"`
+* Create additional NVAs:
+```
+az group deployment create -n nva2 -g $rg --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/nvaCSR1kv.json --parameters "{\"adminPassword\":{\"value\":\"$password\"}, \"adminUsername\":{\"value\":\"lab-user\"}, \"location\":{\"value\":\"westeurope\"}, \"vnetPrefix\":{\"value\": \"192.168.102.0/24\"}, \"subnetPrefix\":{\"value\": \"192.168.102.0/26\"}, \"vmName\":{\"value\": \"mySite2-nva2\"}}"
+```
 * Peer testvnet1 and testvnet2 together, and see how that affects routing
 * Peer testvnet1 with hub2, testvnet2 with hub1
 * Connect nva1 to hub2, nva2 to hub1
+* Modify properties of the setup. For example, to enable 0.0.0.0 advertisement to the subnet:
+```
+az resource update --ids "/subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwan/providers/Microsoft.Network/virtualHubs/myHub1/hubVirtualNetworkConnections/testvnet1" --set properties.enableInternetSecurity=true
+```
