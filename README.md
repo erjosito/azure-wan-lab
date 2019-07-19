@@ -210,7 +210,7 @@ You can get the IP address for the BGP neighbor from your site configuration.
 
 ### Configuring StrongSwan
 
-There is a guide that you can find (here)[https://github.com/Azure/Azure-vpn-config-samples/tree/master/StrongSwan/5.3.5]. You will find the files from this repo already copied into your VM, but you will need to edit them with the right values for your VPN site.
+There is a guide that you can find [here](https://github.com/Azure/Azure-vpn-config-samples/tree/master/StrongSwan/5.3.5). You will find the files from this repo already copied into your VM, but you will need to edit them with the right values for your VPN site.
 
 
 ## Configuring a Cisco CSR 1000v NVA
