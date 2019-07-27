@@ -9,20 +9,20 @@ crypto ikev2 policy azure-policy
   exit
 !
 crypto ikev2 keyring azure-keyring
-  peer {{GW0_Public_IP}}
-    address {{GW0_Public_IP}}
+  peer **GW0_Public_IP**
+    address **GW0_Public_IP**
     pre-shared-key Microsoft123!
     exit
-  peer {{GW1_Public_IP}}
-    address {{GW1_Public_IP}}
+  peer **GW1_Public_IP**
+    address **GW1_Public_IP**
     pre-shared-key Microsoft123!
     exit
   exit
 !
 crypto ikev2 profile azure-profile
   match address local interface GigabitEthernet1
-  match identity remote address {{GW0_Public_IP}} 255.255.255.255
-  match identity remote address {{GW1_Public_IP}} 255.255.255.255
+  match identity remote address **GW0_Public_IP** 255.255.255.255
+  match identity remote address **GW1_Public_IP** 255.255.255.255
   authentication remote pre-share
   authentication local pre-share
   keyring local azure-keyring
@@ -44,7 +44,7 @@ interface Tunnel0
  ip tcp adjust-mss 1350
  tunnel source GigabitEthernet1
  tunnel mode ipsec ipv4
- tunnel destination {{GW0_Public_IP}}
+ tunnel destination **GW0_Public_IP**
  tunnel protection ipsec profile azure-vti
 exit
 !
@@ -53,7 +53,7 @@ interface Tunnel1
  ip tcp adjust-mss 1350
  tunnel source GigabitEthernet1
  tunnel mode ipsec ipv4
- tunnel destination {{GW1_Public_IP}}
+ tunnel destination **GW1_Public_IP**
  tunnel protection ipsec profile azure-vti
 exit
 
@@ -61,15 +61,15 @@ exit
 router bgp 65101
  bgp router-id interface GigabitEthernet1
  bgp log-neighbor-changes
- neighbor {{GW0_Private_IP}} remote-as 65515
- neighbor {{GW0_Private_IP}} ebgp-multihop 5
- neighbor {{GW0_Private_IP}} update-source GigabitEthernet1
- neighbor {{GW1_Private_IP}} remote-as 65515
- neighbor {{GW1_Private_IP}} ebgp-multihop 5
- neighbor {{GW1_Private_IP}} update-source GigabitEthernet1
+ neighbor **GW0_Private_IP** remote-as 65515
+ neighbor **GW0_Private_IP** ebgp-multihop 5
+ neighbor **GW0_Private_IP** update-source GigabitEthernet1
+ neighbor **GW1_Private_IP** remote-as 65515
+ neighbor **GW1_Private_IP** ebgp-multihop 5
+ neighbor **GW1_Private_IP** update-source GigabitEthernet1
 !
-ip route {{GW0_Private_IP}} 255.255.255.255 Tunnel0
-ip route {{GW1_Private_IP}} 255.255.255.255 Tunnel1
+ip route **GW0_Private_IP** 255.255.255.255 Tunnel0
+ip route **GW1_Private_IP** 255.255.255.255 Tunnel1
 !
 end
 !
