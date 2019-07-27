@@ -223,6 +223,8 @@ After the deployment, you can connect to the CSR CLI via SSH (default username i
 * CSR BGP peering IP address (should be the IP address for interface GigabitEthernet1): 192.168.100.4
 * CSR BGP ASN: 65101
 
+### Deploy configuration manually
+
 You can copy this config into a text editor, replace the parameters specific to your environment (public IP addresses, BGP neighbor IP address)
 
 ```
@@ -282,6 +284,44 @@ ip route 192.168.0.4 255.255.255.255 Tunnel0
 ```
 
 Do not forget to save your configuration! If you want to use two tunnels, you can find a sample config [here](csr_config_2tunnels.txt), that you can take and replace the values of the public/private addresses of the VPN gateways accordingly.
+
+### Deploy configuration programmatically
+
+You can copy the configuration from the Virtual WAN object to a blob, to then analyze it or deploy it to Azure. You can use Powershell for this with the command `Get-AzVirtualWanVpnConfiguration`, or the Azure CLI, with the command `az network vpn-site download`:
+
+```
+# Some variables
+rg=vwan
+container_name=vpnconfig
+blob_name=vpnconfig.json
+
+# Pick up one storage account and find out name and key
+account_name=$(az storage account list -g $rg -o tsv --query [0].name)
+account_key=$(az storage account keys list -g $rg --account-name $account_name --query [0].value -o tsv)
+
+# Create a container and a SAS
+az storage container create --account-name $account_name --account-key $account_key -n $container_name
+sas=$(az storage container generate-sas --account-name $account_name --account-key $account_key -n $container_name -o tsv)
+account_url=$(az storage account show -n $account_name --query primaryEndpoints.blob -o tsv)
+blob_url=${account_url}${container_name}/${blob_name}?$sas
+
+# Once the config is in our blob, download
+az storage blob download --account-name $account_name -c $container_name -n $blob_name --sas-token $sas -f $blob_name
+
+# We can now parse the json file with jq (you might have to install jq in your OS)
+site_name=$(jq -r '.[0].vpnSiteConfiguration.Name' ./vpnconfig.txt)
+site_ip=$(jq -r '.[0].vpnSiteConfiguration.IPAddress' ./vpnconfig.txt)
+site_asn=$(jq -r '.[0].vpnSiteConfiguration.BgpSetting.Asn' ./vpnconfig.txt)
+gw0_public_ip=$(jq -r '.[0].vpnSiteConnections[0].gatewayConfiguration.IpAddresses.Instance0' ./vpnconfig.txt)
+gw0_private_ip=$(jq -r '.[0].vpnSiteConnections[0].gatewayConfiguration.BgpSetting.BgpPeeringAddresses.Instance0' ./vpnconfig.txt)
+gw1_public_ip=$(jq -r '.[0].vpnSiteConnections[0].gatewayConfiguration.IpAddresses.Instance1' ./vpnconfig.txt)
+gw1_private_ip=$(jq -r '.[0].vpnSiteConnections[0].gatewayConfiguration.BgpSetting.BgpPeeringAddresses.Instance1' ./vpnconfig.txt)
+echo "Configuration for site $site_name for the VPN device with public IP $site_ip and ASN $site_asn:"
+echo " - Gateway 0 public IP address $gw0_public_ip, BGP peering IP address $gw0_private_ip"
+echo " - Gateway 1 public IP address $gw1_public_ip, BGP peering IP address $gw1_private_ip"
+```
+
+### Verify the tunnels are up
 
 Now you can verify that the IPSec tunnel has been established. The first step is verifying that the state of your IKE Security Association is `READY`:
 
@@ -825,7 +865,7 @@ az group deployment create -n nva2 -g $rg --template-uri https://raw.githubuserc
 * Peer testvnet1 and testvnet2 together, and see how that affects routing
 * Peer testvnet1 with hub2, testvnet2 with hub1
 * Connect nva1 to hub2, nva2 to hub1
-* Modify properties of the setup. For example, to enable 0.0.0.0 advertisement to the subnet:
+* Modify properties of the setup. For example, to enable 0.0.0.0 advertisement to a certain vnet:
 ```
 az resource update --ids "/subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwan/providers/Microsoft.Network/virtualHubs/myHub1/hubVirtualNetworkConnections/testvnet1" --set properties.enableInternetSecurity=true
 ```
