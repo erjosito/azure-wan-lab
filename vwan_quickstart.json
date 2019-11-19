@@ -1,5 +1,5 @@
 {
-    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
         "wanName": {
@@ -81,7 +81,7 @@
         }
     },
     "variables": {
-        "networkApiVersion": "2018-08-01",
+        "networkApiVersion": "2010-09-01",
         "deploymentApiVersion": "2017-05-10",
         "siteLocation": "[parameters('hubLocation')]",
         "enableBgp": "true",
