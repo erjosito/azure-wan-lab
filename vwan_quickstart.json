@@ -81,7 +81,7 @@
         }
     },
     "variables": {
-        "networkApiVersion": "2010-09-01",
+        "networkApiVersion": "2019-09-01",
         "deploymentApiVersion": "2017-05-10",
         "siteLocation": "[parameters('hubLocation')]",
         "enableBgp": "true",
