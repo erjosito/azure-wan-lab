@@ -832,6 +832,8 @@ As you might have expected, not there (only the IP address range statically defi
 
 # Deploy a VWAN with two hubs and one branch in each hub
 
+## Option 1: step-by-step
+
 The following commands will deploy a virtual WAN resource, two hubs (one in West Europe, the other one in West US 2), one site associated to each hub, one vnet in each region that you can peer to each hub, and two Cisco CSR NVAs in their own vnet, that you can use to simulate branches:
 
 ```
@@ -848,6 +850,17 @@ az group deployment create -n hub2 -g $rg --template-uri https://raw.githubuserc
 az group deployment create -g $rg --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vmLinux.json --parameters "{\"vmPwd\":{\"value\":\"$password\"}, \"vnetName\":{\"value\":\"testvnet1\"}, \"vnetPrefix\":{\"value\":\"10.0.1.0/24\"}, \"subnetPrefix\":{\"value\":\"10.0.1.0/26\"}, \"vmName\":{\"value\":\"testvm1\"}, \"location\":{\"value\":\"westeurope\"}}"
 az group deployment create -g $rg --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vmLinux.json --parameters "{\"vmPwd\":{\"value\":\"$password\"}, \"vnetName\":{\"value\":\"testvnet2\"}, \"vnetPrefix\":{\"value\":\"10.0.2.0/24\"}, \"subnetPrefix\":{\"value\":\"10.0.2.0/26\"}, \"vmName\":{\"value\":\"testvm2\"}, \"location\":{\"value\":\"westus2\"}}"
 ```
+
+## Option 2: all-in-one template
+
+```
+rg=vwan
+password=yoursupersecurepassword # Or better, take it from your Key Vault
+az group create -n $rg -l westeurope
+az group deployment create -n 2hubs -g $rg --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vwan_2hubs.json --parameters "{\"adminPassword\":{\"value\":\"$password\"}}"
+```
+
+## Configuration
 
 To do after this:
 

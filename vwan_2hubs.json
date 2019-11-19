@@ -95,6 +95,7 @@
             "name": "vwanHub2",
             "type": "Microsoft.Resources/deployments",
             "apiVersion": "[variables('deploymentApiVersion')]",
+            "dependsOn": ["vwanHub1"],
             "properties": {
                 "mode": "Incremental",
                 "templateLink": {
@@ -192,7 +193,7 @@
                 "parameters": {
                     "location": {"value": "[variables('location2')]"},
                     "vmPwd": {"value": "[parameters('adminPassword')]"},
-                    "adminUsername": {"value": "[parameters('adminUsername')]"},
+                    "vmUsr": {"value": "[parameters('adminUsername')]"},
                     "vnetName": {"value": "[variables('vnetSpoke2')['vnetName']]"},
                     "vnetPrefix": {"value": "[variables('vnetSpoke2')['vnetPrefix']]"},
                     "subnetPrefix": {"value": "[variables('vnetSpoke2')['subnetPrefix']]"},
