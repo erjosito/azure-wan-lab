@@ -26,14 +26,16 @@
             "prefix": "192.168.1.0/24",
             "siteName": "mySite1",
             "siteAsn": 65101,
-            "branchVnetPrefix": "192.168.101.0/26"
+            "branchVnetPrefix": "192.168.101.0/24",
+            "branchSubnetPrefix": "192.168.101.0/26"
         },
         "vwanHub2": {
             "name": "myHub2",
             "prefix": "192.168.2.0/24",
             "siteName": "mySite2",
             "siteAsn": 65102,
-            "branchVnetPrefix": "192.168.102.0/26"
+            "branchVnetPrefix": "192.168.102.0/24",
+            "branchSubnetPrefix": "192.168.102.0/26"
         },
         "vnetHub1": {
             "name": "hub1-nva",
@@ -83,7 +85,8 @@
                     "hubPrefix": {"value": "[variables('vwanHub1')['prefix']]"},
                     "siteName": {"value": "[variables('vwanHub1')['siteName']]"},
                     "siteAsn": {"value": "[variables('vwanHub1')['siteAsn']]"},
-                    "branchVnetPrefix": {"value": "[variables('vwanHub1')['branchVnetPrefix']]"}
+                    "branchVnetPrefix": {"value": "[variables('vwanHub1')['branchVnetPrefix']]"},
+                    "branchSubnetPrefix": {"value": "[variables('vwanHub1')['branchSubnetPrefix']]"}
                 }
             }
         },
@@ -106,7 +109,8 @@
                     "hubPrefix": {"value": "[variables('vwanHub2')['prefix']]"},
                     "siteName": {"value": "[variables('vwanHub2')['siteName']]"},
                     "siteAsn": {"value": "[variables('vwanHub2')['siteAsn']]"},
-                    "branchVnetPrefix": {"value": "[variables('vwanHub2')['branchVnetPrefix']]"}
+                    "branchVnetPrefix": {"value": "[variables('vwanHub2')['branchVnetPrefix']]"},
+                    "branchSubnetPrefix": {"value": "[variables('vwanHub2')['branchSubnetPrefix']]"}
                 }
             }
         },
