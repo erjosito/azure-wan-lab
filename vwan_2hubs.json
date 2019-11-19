@@ -5,21 +5,14 @@
         "adminPassword": {
             "type": "securestring",
             "metadata": {
-                "description": "Password to be configured in the NVA (user is lab-user)"
+                "description": "Password to be configured in the NVA (user is lab-user), also used for the IPsec pre-shared key"
             }
         },
         "adminUsername": {
             "type": "string",
             "defaultValue": "lab-user",
             "metadata": {
-                "description": "Password to be configured in the NVA (user is lab-user)"
-            }
-        },
-        "presharedKey": {
-            "type": "securestring",
-            "defaultValue": "[parameters('adminPassword')]",
-            "metadata": {
-                "description": "Password to be configured in the NVA (user is lab-user)"
+                "description": "Default username"
             }
         }
     },
@@ -32,14 +25,14 @@
             "name": "myHub1",
             "prefix": "192.168.1.0/24",
             "siteName": "mySite1",
-            "siteAsn": "65101",
+            "siteAsn": 65101,
             "branchVnetPrefix": "192.168.101.0./26"
         },
         "vwanHub2": {
             "name": "myHub2",
             "prefix": "192.168.2.0/24",
             "siteName": "mySite2",
-            "siteAsn": "65102",
+            "siteAsn": 65102,
             "branchVnetPrefix": "192.168.102.0./26"
         },
         "vnetHub1": {
@@ -59,8 +52,8 @@
             "subnetPrefix": "10.0.1.0/26"
         },
         "vnetSpoke2": {
-            "vmName": "spoke1-vm",
-            "vnetName": "spoke1",
+            "vmName": "spoke2-vm",
+            "vnetName": "spoke2",
             "vnetPrefix": "10.0.2.0/24",
             "subnetPrefix": "10.0.2.0/26"
         },
