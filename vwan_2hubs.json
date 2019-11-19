@@ -95,7 +95,6 @@
             "name": "vwanHub2",
             "type": "Microsoft.Resources/deployments",
             "apiVersion": "[variables('deploymentApiVersion')]",
-            "dependsOn": ["vwanHub1"],
             "properties": {
                 "mode": "Incremental",
                 "templateLink": {
@@ -113,7 +112,8 @@
                     "branchVnetPrefix": {"value": "[variables('vwanHub2')['branchVnetPrefix']]"},
                     "branchSubnetPrefix": {"value": "[variables('vwanHub2')['branchSubnetPrefix']]"}
                 }
-            }
+            },
+            "dependsOn": ["vwanHub1"]
         },
         {
             "comments": "Customer hub vnet with CSR NVA, location 1",
@@ -134,7 +134,8 @@
                     "subnetPrefix": {"value": "[variables('vnetHub1')['subnetPrefix']]"},
                     "vmName": {"value": "[variables('vnetHub1')['name']]"}
                 }
-            }
+            },
+            "dependsOn": ["vwanHub2"]
         },
         {
             "comments": "Customer hub vnet with CSR NVA, location 2",
@@ -155,7 +156,8 @@
                     "subnetPrefix": {"value": "[variables('vnetHub2')['subnetPrefix']]"},
                     "vmName": {"value": "[variables('vnetHub2')['name']]"}
                 }
-            }
+            },
+            "dependsOn": ["vnetHub1"]
         },
         {
             "comments": "Customer spoke vnet with linux VM, location 1",
@@ -177,7 +179,8 @@
                     "subnetPrefix": {"value": "[variables('vnetSpoke1')['subnetPrefix']]"},
                     "vmName": {"value": "[variables('vnetSpoke1')['vmName']]"}
                 }
-            }
+            },
+            "dependsOn": ["vnetHub2"]
         },
         {
             "comments": "Customer spoke vnet with linux VM, location 2",
@@ -199,7 +202,8 @@
                     "subnetPrefix": {"value": "[variables('vnetSpoke2')['subnetPrefix']]"},
                     "vmName": {"value": "[variables('vnetSpoke2')['vmName']]"}
                 }
-            }
+            },
+            "dependsOn": ["spokeVnet1"]
         }
     ]
 }
