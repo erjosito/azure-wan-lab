@@ -171,7 +171,7 @@
                 "parameters": {
                     "location": {"value": "[variables('location1')]"},
                     "vmPwd": {"value": "[parameters('adminPassword')]"},
-                    "adminUsername": {"value": "[parameters('adminUsername')]"},
+                    "vmUsr": {"value": "[parameters('adminUsername')]"},
                     "vnetName": {"value": "[variables('vnetSpoke1')['vnetName']]"},
                     "vnetPrefix": {"value": "[variables('vnetSpoke1')['vnetPrefix']]"},
                     "subnetPrefix": {"value": "[variables('vnetSpoke1')['subnetPrefix']]"},
