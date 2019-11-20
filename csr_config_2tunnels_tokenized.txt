@@ -11,11 +11,11 @@ crypto ikev2 policy azure-policy
 crypto ikev2 keyring azure-keyring
   peer **GW0_Public_IP**
     address **GW0_Public_IP**
-    pre-shared-key Microsoft123!
+    pre-shared-key **PSK**
     exit
   peer **GW1_Public_IP**
     address **GW1_Public_IP**
-    pre-shared-key Microsoft123!
+    pre-shared-key **PSK**
     exit
   exit
 !
