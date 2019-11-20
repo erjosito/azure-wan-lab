@@ -207,3 +207,226 @@
         }
     ]
 }
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "adminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Password to be configured in the NVA (user is lab-user), also used for the IPsec pre-shared key"
+            }
+        },
+        "adminUsername": {
+            "type": "string",
+            "defaultValue": "lab-user",
+            "metadata": {
+                "description": "Default username"
+            }
+        },
+        "step": {
+            "type": "int",
+            "defaultValue": 1,
+            "metadata": {
+                "description": "Step to start the process (templates are rolled out sequentially)"
+            }
+        }
+
+    },
+    "variables": {
+        "deploymentApiVersion": "2017-05-10",
+        "location1": "westeurope",
+        "location2": "westus2",
+        "nvaType": "cisco_csr",
+        "vwanHub1": {
+            "name": "myHub1",
+            "prefix": "192.168.1.0/24",
+            "siteName": "mySite1",
+            "siteAsn": 65101,
+            "branchVnetPrefix": "192.168.101.0/24",
+            "branchSubnetPrefix": "192.168.101.0/26"
+        },
+        "vwanHub2": {
+            "name": "myHub2",
+            "prefix": "192.168.2.0/24",
+            "siteName": "mySite2",
+            "siteAsn": 65102,
+            "branchVnetPrefix": "192.168.102.0/24",
+            "branchSubnetPrefix": "192.168.102.0/26"
+        },
+        "vnetHub1": {
+            "name": "hub1-nva",
+            "vnetPrefix": "10.0.11.0/24",
+            "subnetPrefix": "10.0.11.0/26"
+        },
+        "vnetHub2": {
+            "name": "hub2-nva",
+            "vnetPrefix": "10.0.12.0/24",
+            "subnetPrefix": "10.0.12.0/26"
+        },
+        "vnetSpoke1": {
+            "vmName": "spoke1-vm",
+            "vnetName": "spoke1",
+            "vnetPrefix": "10.0.1.0/24",
+            "subnetPrefix": "10.0.1.0/26"
+        },
+        "vnetSpoke2": {
+            "vmName": "spoke2-vm",
+            "vnetName": "spoke2",
+            "vnetPrefix": "10.0.2.0/24",
+            "subnetPrefix": "10.0.2.0/26"
+        },
+        "url": {
+            "vwanHub": "https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vwan_quickstart.json",
+            "hubVnet": "https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/nvaCSR1kv.json",
+            "spokeVnet": "https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vmLinux.json"
+        }
+    },
+    "resources": [
+        {
+            "comments": "First hub with vpn site and NVA in location 1",
+            "name": "vwanHub1",
+            "type": "Microsoft.Resources/deployments",
+            "condition": "[greaterOrEquals(1, parameters('step'))]",
+            "apiVersion": "[variables('deploymentApiVersion')]",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[variables('url')['vwanHub']]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "hubLocation": {"value": "[variables('location1')]"},
+                    "nvaPwd": {"value": "[parameters('adminPassword')]"},
+                    "nvaType": {"value": "[variables('nvaType')]"},
+                    "hubName": {"value": "[variables('vwanHub1')['name']]"},
+                    "hubPrefix": {"value": "[variables('vwanHub1')['prefix']]"},
+                    "siteName": {"value": "[variables('vwanHub1')['siteName']]"},
+                    "siteAsn": {"value": "[variables('vwanHub1')['siteAsn']]"},
+                    "branchVnetPrefix": {"value": "[variables('vwanHub1')['branchVnetPrefix']]"},
+                    "branchSubnetPrefix": {"value": "[variables('vwanHub1')['branchSubnetPrefix']]"}
+                }
+            }
+        },
+        {
+            "comments": "Customer hub vnet with CSR NVA, location 1",
+            "name": "vnetHub1",
+            "type": "Microsoft.Resources/deployments",
+            "condition": "[greaterOrEquals(2, parameters('step'))]",
+            "apiVersion": "[variables('deploymentApiVersion')]",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[variables('url')['hubVnet']]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "location": {"value": "[variables('location1')]"},
+                    "adminPassword": {"value": "[parameters('adminPassword')]"},
+                    "adminUsername": {"value": "[parameters('adminUsername')]"},
+                    "vnetPrefix": {"value": "[variables('vnetHub1')['vnetPrefix']]"},
+                    "subnetPrefix": {"value": "[variables('vnetHub1')['subnetPrefix']]"},
+                    "vmName": {"value": "[variables('vnetHub1')['name']]"}
+                }
+            },
+            "dependsOn": ["vwanHub1"]
+        },
+        {
+            "comments": "Customer spoke vnet with linux VM, location 1",
+            "name": "spokeVnet1",
+            "type": "Microsoft.Resources/deployments",
+            "condition": "[greaterOrEquals(3, parameters('step'))]",
+            "apiVersion": "[variables('deploymentApiVersion')]",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[variables('url')['spokeVnet']]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "location": {"value": "[variables('location1')]"},
+                    "vmPwd": {"value": "[parameters('adminPassword')]"},
+                    "vmUsr": {"value": "[parameters('adminUsername')]"},
+                    "vnetName": {"value": "[variables('vnetSpoke1')['vnetName']]"},
+                    "vnetPrefix": {"value": "[variables('vnetSpoke1')['vnetPrefix']]"},
+                    "subnetPrefix": {"value": "[variables('vnetSpoke1')['subnetPrefix']]"},
+                    "vmName": {"value": "[variables('vnetSpoke1')['vmName']]"}
+                }
+            },
+            "dependsOn": ["vnetHub1"]
+        },
+        {
+            "comments": "Second hub with vpn site and NVA in location 2",
+            "name": "vwanHub2",
+            "type": "Microsoft.Resources/deployments",
+            "condition": "[greaterOrEquals(4, parameters('step'))]",
+            "apiVersion": "[variables('deploymentApiVersion')]",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[variables('url')['vwanHub']]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "hubLocation": {"value": "[variables('location2')]"},
+                    "nvaPwd": {"value": "[parameters('adminPassword')]"},
+                    "nvaType": {"value": "[variables('nvaType')]"},
+                    "hubName": {"value": "[variables('vwanHub2')['name']]"},
+                    "hubPrefix": {"value": "[variables('vwanHub2')['prefix']]"},
+                    "siteName": {"value": "[variables('vwanHub2')['siteName']]"},
+                    "siteAsn": {"value": "[variables('vwanHub2')['siteAsn']]"},
+                    "branchVnetPrefix": {"value": "[variables('vwanHub2')['branchVnetPrefix']]"},
+                    "branchSubnetPrefix": {"value": "[variables('vwanHub2')['branchSubnetPrefix']]"}
+                }
+            },
+            "dependsOn": ["spokeVnet1"]
+        },
+        {
+            "comments": "Customer hub vnet with CSR NVA, location 2",
+            "name": "vnetHub2",
+            "type": "Microsoft.Resources/deployments",
+            "condition": "[greaterOrEquals(5, parameters('step'))]",
+            "apiVersion": "[variables('deploymentApiVersion')]",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[variables('url')['hubVnet']]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "location": {"value": "[variables('location2')]"},
+                    "adminPassword": {"value": "[parameters('adminPassword')]"},
+                    "adminUsername": {"value": "[parameters('adminUsername')]"},
+                    "vnetPrefix": {"value": "[variables('vnetHub2')['vnetPrefix']]"},
+                    "subnetPrefix": {"value": "[variables('vnetHub2')['subnetPrefix']]"},
+                    "vmName": {"value": "[variables('vnetHub2')['name']]"}
+                }
+            },
+            "dependsOn": ["vwanHub2"]
+        },
+        {
+            "comments": "Customer spoke vnet with linux VM, location 2",
+            "name": "spokeVnet2",
+            "type": "Microsoft.Resources/deployments",
+            "condition": "[greaterOrEquals(6, parameters('step'))]",
+            "apiVersion": "[variables('deploymentApiVersion')]",
+            "properties": {
+                "mode": "Incremental",
+                "templateLink": {
+                    "uri": "[variables('url')['spokeVnet']]",
+                    "contentVersion": "1.0.0.0"
+                },
+                "parameters": {
+                    "location": {"value": "[variables('location2')]"},
+                    "vmPwd": {"value": "[parameters('adminPassword')]"},
+                    "vmUsr": {"value": "[parameters('adminUsername')]"},
+                    "vnetName": {"value": "[variables('vnetSpoke2')['vnetName']]"},
+                    "vnetPrefix": {"value": "[variables('vnetSpoke2')['vnetPrefix']]"},
+                    "subnetPrefix": {"value": "[variables('vnetSpoke2')['subnetPrefix']]"},
+                    "vmName": {"value": "[variables('vnetSpoke2')['vmName']]"}
+                }
+            },
+            "dependsOn": ["vnetHub2"]
+        }
+    ]
+}
