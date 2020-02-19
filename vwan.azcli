@@ -44,14 +44,14 @@ az network vwan create -n $vwan -g $rg -l $location1 --branch-to-branch-traffic 
 az network vhub create -n hub1 -g $rg --vwan $vwan -l $location1 --address-prefix $vwan_hub1_prefix
 az network vhub create -n hub2 -g $rg --vwan $vwan -l $location2 --address-prefix $vwan_hub2_prefix
 
-# Branch 1
+# Branch 1. Parallelizing the vpn gw creation is not recommended
 az vm create -n branch1-nva -g $rg -l $location1 --image ${publisher}:${offer}:${sku}:${version} --admin-username "$username" --admin-password "$password" --public-ip-address branch1-pip --public-ip-address-allocation static --vnet-name branch1 --vnet-address-prefix $branch1_prefix --subnet nva --subnet-address-prefix $branch1_subnet --private-ip-address $branch1_bgp_ip
 branch1_ip=$(az network public-ip show -n branch1-pip -g $rg --query ipAddress -o tsv)
 az network vpn-site create -n branch1 -g $rg -l $location1 --virtual-wan $vwan --asn $branch1_asn --bgp-peering-address $branch1_bgp_ip --ip-address $branch1_ip --address-prefixes ${branch1_ip}/32 --device-vendor cisco --device-model csr --link-speed 100
 az network vpn-gateway create -n hubvpn1 -g $rg -l $location1 --vhub hub1 --asn $vwan_hub1_asn
 az network vpn-gateway connection create -n branch1 --gateway-name hubvpn1 -g $rg --remote-vpn-site branch1 --enable-bgp true --protocol-type IKEv2 --shared-key "$password" --connection-bandwidth 100 --routing-weight 10
 
-# Branch 2
+# Branch 2. Parallelizing the vpn gw creation is not recommended
 az vm create -n branch2-nva -g $rg -l $location2 --image ${publisher}:${offer}:${sku}:${version} --admin-username "$username" --admin-password "$password" --public-ip-address branch2-pip --public-ip-address-allocation static --vnet-name branch2 --vnet-address-prefix $branch2_prefix --subnet nva --subnet-address-prefix $branch2_subnet --private-ip-address $branch2_bgp_ip
 branch2_ip=$(az network public-ip show -n branch2-pip -g $rg --query ipAddress -o tsv)
 az network vpn-site create -n branch2 -g $rg -l $location2 --virtual-wan $vwan --asn $branch2_asn --bgp-peering-address $branch2_bgp_ip --ip-address $branch2_ip --address-prefixes ${branch2_ip}/32
@@ -63,6 +63,7 @@ az network vpn-gateway connection create -n branch2 --gateway-name hubvpn2 -g $r
 storage_account=vpnconfigs$RANDOM 
 container_name=configs
 blob_name=vpnconfig.json
+file_name="/tmp/${blob_name}"
 az storage account create -n $storage_account -g $rg -l $location1 --sku Standard_LRS
 az storage container create -n $container_name --account-name $storage_account
 end_time=`date -u -d "30 minutes" '+%Y-%m-%dT%H:%MZ'`
@@ -70,63 +71,94 @@ sas=$(az storage container generate-sas -n $container_name --account-name $stora
 account_url=$(az storage account show -n $storage_account -g $rg --query primaryEndpoints.blob -o tsv)
 storage_url=${account_url}${container_name}"/"${blob_name}"?"${sas}
 az network vpn-site download --vwan-name $vwan -g $rg --vpn-sites branch1 branch2 --output-blob-sas-url $storage_url
-az storage blob download --account-name $storage_account -c $container_name -n $blob_name --sas-token $sas -f $blob_name
+az storage blob download --account-name $storage_account -c $container_name -n $blob_name --sas-token $sas -f $file_name
 
 # Extract info for branch1
 site=branch1
-branch1_psk=$(cat $blob_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].connectionConfiguration.PSK')
-branch1_gw0_pip=$(cat $blob_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].gatewayConfiguration.IpAddresses.Instance0')
-branch1_gw1_pip=$(cat $blob_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].gatewayConfiguration.IpAddresses.Instance1')
-branch1_gw0_bgp_ip=$(cat $blob_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].gatewayConfiguration.BgpSetting.BgpPeeringAddresses.Instance0')
-branch1_gw1_bgp_ip=$(cat $blob_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].gatewayConfiguration.BgpSetting.BgpPeeringAddresses.Instance1')
+branch1_psk=$(cat $file_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].connectionConfiguration.PSK')
+branch1_gw0_pip=$(cat $file_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].gatewayConfiguration.IpAddresses.Instance0')
+branch1_gw1_pip=$(cat $file_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].gatewayConfiguration.IpAddresses.Instance1')
+branch1_gw0_bgp_ip=$(cat $file_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].gatewayConfiguration.BgpSetting.BgpPeeringAddresses.Instance0')
+branch1_gw1_bgp_ip=$(cat $file_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].gatewayConfiguration.BgpSetting.BgpPeeringAddresses.Instance1')
+echo "Extracted info for $site: Gateway0 $branch1_gw0_pip, $branch1_gw0_bgp_ip. Gateway1 $branch1_gw1_pip, branch1_gw0_bgp_ip. PSK $branch1_psk"
 
 # Extract info for branch2
 site=branch2
-branch2_psk=$(cat $blob_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].connectionConfiguration.PSK')
-branch2_gw0_pip=$(cat $blob_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].gatewayConfiguration.IpAddresses.Instance0')
-branch2_gw1_pip=$(cat $blob_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].gatewayConfiguration.IpAddresses.Instance1')
-branch2_gw0_bgp_ip=$(cat $blob_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].gatewayConfiguration.BgpSetting.BgpPeeringAddresses.Instance0')
-branch2_gw1_bgp_ip=$(cat $blob_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].gatewayConfiguration.BgpSetting.BgpPeeringAddresses.Instance1')
+branch2_psk=$(cat $file_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].connectionConfiguration.PSK')
+branch2_gw0_pip=$(cat $file_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].gatewayConfiguration.IpAddresses.Instance0')
+branch2_gw1_pip=$(cat $file_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].gatewayConfiguration.IpAddresses.Instance1')
+branch2_gw0_bgp_ip=$(cat $file_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].gatewayConfiguration.BgpSetting.BgpPeeringAddresses.Instance0')
+branch2_gw1_bgp_ip=$(cat $file_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].gatewayConfiguration.BgpSetting.BgpPeeringAddresses.Instance1')
+echo "Extracted info for $site: Gateway0 $branch2_gw0_pip, $branch2_gw0_bgp_ip. Gateway1 $branch2_gw1_pip, branch2_gw0_bgp_ip. PSK $branch2_psk"
 
 # Create CSR config for branch 1
 csr_config_url="https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/csr_config_2tunnels_tokenized.txt"
-config_file=branch1_csr.cfg
-wget $csr_config_url -O $config_file
-sed -i "s|\*\*PSK\*\*|${branch1_psk}|g" $config_file
-sed -i "s|\*\*GW0_Private_IP\*\*|${branch1_gw0_bgp_ip}|g" $config_file
-sed -i "s|\*\*GW1_Private_IP\*\*|${branch1_gw1_bgp_ip}|g" $config_file
-sed -i "s|\*\*GW0_Public_IP\*\*|${branch1_gw0_pip}|g" $config_file
-sed -i "s|\*\*GW1_Public_IP\*\*|${branch1_gw1_pip}|g" $config_file
-sed -i "s|\*\*BGP_ID\*\*|${branch1_asn}|g" $config_file
-scp $config_file ${branch1_ip}:/${config_file}
-
-# Not working on a cisco router
-( echo "copy bootflash:${config_file} running-config" ; sleep 10 ) | ssh -T $branch1_ip
-ssh -t $username:$password@$branch1_ip "copy bootflash:${config_file} running-config"  # without sshpass
-sshpass -p $password ssh -t -t $username:$password@$branch1_ip "copy bootflash:${config_file} running-config"  # with sshpass
+config_file_csr='branch1_csr.cfg'
+config_file_local='/tmp/branch1_csr.cfg'
+wget $csr_config_url -O $config_file_local
+sed -i "s|\*\*PSK\*\*|${branch1_psk}|g" $config_file_local
+sed -i "s|\*\*GW0_Private_IP\*\*|${branch1_gw0_bgp_ip}|g" $config_file_local
+sed -i "s|\*\*GW1_Private_IP\*\*|${branch1_gw1_bgp_ip}|g" $config_file_local
+sed -i "s|\*\*GW0_Public_IP\*\*|${branch1_gw0_pip}|g" $config_file_local
+sed -i "s|\*\*GW1_Public_IP\*\*|${branch1_gw1_pip}|g" $config_file_local
+sed -i "s|\*\*BGP_ID\*\*|${branch1_asn}|g" $config_file_local
+scp $config_file_local ${branch1_ip}:/${config_file_csr}
+( echo "copy bootflash:${config_file_csr} running-config" ; sleep 15 ) | ssh -T $branch1_ip
+# ssh -t $username:$password@$branch1_ip "copy bootflash:${config_file_csr} running-config" # Not working on a cisco router
+# sshpass -p $password ssh -t -t $username:$password@$branch1_ip "copy bootflash:${config_file} running-config"  # with sshpass
+( echo "wr mem" ; sleep 10 ) | ssh -T $branch1_ip
 ( echo "show crypto ike sa" ; sleep 10 ) | ssh -T $branch1_ip
 ( echo "show crypto ipsec sa" ; sleep 10 ) | ssh -T $branch1_ip
+echo "If the previous commands do not work, connect to the router and issue these commands:"
+echo "copy bootflash:${config_file_csr} running-config"
+echo "wr mem"
 
 # Create CSR config for branch 2
 csr_config_url="https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/csr_config_2tunnels_tokenized.txt"
-config_file=branch2_csr.cfg
-wget $csr_config_url -O $config_file
-sed -i "s|\*\*PSK\*\*|${branch2_psk}|g" $config_file
-sed -i "s|\*\*GW0_Private_IP\*\*|${branch2_gw0_bgp_ip}|g" $config_file
-sed -i "s|\*\*GW1_Private_IP\*\*|${branch2_gw1_bgp_ip}|g" $config_file
-sed -i "s|\*\*GW0_Public_IP\*\*|${branch2_gw0_pip}|g" $config_file
-sed -i "s|\*\*GW1_Public_IP\*\*|${branch2_gw1_pip}|g" $config_file
-sed -i "s|\*\*BGP_ID\*\*|${branch2_asn}|g" $config_file
-scp $config_file ${branch2_ip}:/${config_file}
-( echo "copy bootflash:${config_file} running-config" ; sleep 10 ) | ssh -T $branch2_ip
+config_file_csr='branch2_csr.cfg'
+config_file_local='/tmp/branch2_csr.cfg'
+wget $csr_config_url -O $config_file_local
+sed -i "s|\*\*PSK\*\*|${branch2_psk}|g" $config_file_local
+sed -i "s|\*\*GW0_Private_IP\*\*|${branch2_gw0_bgp_ip}|g" $config_file_local
+sed -i "s|\*\*GW1_Private_IP\*\*|${branch2_gw1_bgp_ip}|g" $config_file_local
+sed -i "s|\*\*GW0_Public_IP\*\*|${branch2_gw0_pip}|g" $config_file_local
+sed -i "s|\*\*GW1_Public_IP\*\*|${branch2_gw1_pip}|g" $config_file_local
+sed -i "s|\*\*BGP_ID\*\*|${branch2_asn}|g" $config_file_local
+scp $config_file_local ${branch2_ip}:/${config_file_csr}
+( echo "copy bootflash:${config_file_csr} running-config" ; sleep 15 ) | ssh -T $branch2_ip
 ( echo "wr mem" ; sleep 10 ) | ssh -T $branch2_ip
 ( echo "show crypto ike sa" ; sleep 10 ) | ssh -T $branch2_ip
+( echo "show ip int b" ; sleep 10 ) | ssh -T $branch2_ip
+echo "If the previous commands do not work, connect to the router and issue these commands:"
+echo "copy bootflash:${config_file_csr} running-config"
+echo "wr mem"
 
-# Cross links (branch1-hub2, branch2-hub1)
-az network vpn-gateway connection create -n branch1-to-hub2 --gateway-name hubvpn1 -g $rg --remote-vpn-site branch2 --enable-bgp true --protocol-type IKEv2 --shared-key "$password"
-az network vpn-gateway connection create -n branch2-to-hub1 --gateway-name hubvpn2 -g $rg --remote-vpn-site branch1 --enable-bgp true --protocol-type IKEv2 --shared-key "$password"
+# Add a cross link for one of the sites (branch1-hub2, branch2-hub1) -> Not working!
+az network vpn-gateway connection create -n branch2-to-hub1 --gateway-name hubvpn1 -g $rg --remote-vpn-site branch2 --enable-bgp true --protocol-type IKEv2 --shared-key "$password"
+#az network vpn-gateway connection create -n branch1-to-hub2 --gateway-name hubvpn2 -g $rg --remote-vpn-site branch1 --enable-bgp true --protocol-type IKEv2 --shared-key "$password"
 # output:
 # UpdateOnResourceNotAllowedWithApiVersion - Resource /subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwan/providers/Microsoft.Network/vpnGateways/hubvpn2/vpnConnections/Connection-branch2 cannot be updated using API version 2018-08-01 since it uses the property VpnLinkConnections which has been set using a higher API version 2019-06-01. Please use api version greater than or equal to 2019-06-01 to update the resource.
+
+# Create CSR config for branch 2 with 4 tunnels
+csr_config_url="https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/csr_config_4tunnels_tokenized.txt"
+config_file_csr='branch2_csr.cfg'
+config_file_local='/tmp/branch2_csr.cfg'
+wget $csr_config_url -O $config_file_local
+sed -i "s|\*\*PSK\*\*|${branch2_psk}|g" $config_file_local
+sed -i "s|\*\*GW0_Private_IP\*\*|${branch2_gw0_bgp_ip}|g" $config_file_local
+sed -i "s|\*\*GW1_Private_IP\*\*|${branch2_gw1_bgp_ip}|g" $config_file_local
+sed -i "s|\*\*GW0_Public_IP\*\*|${branch2_gw0_pip}|g" $config_file_local
+sed -i "s|\*\*GW1_Public_IP\*\*|${branch2_gw1_pip}|g" $config_file_local
+sed -i "s|\*\*BGP_ID\*\*|${branch2_asn}|g" $config_file_local
+scp $config_file_local ${branch2_ip}:/${config_file_csr}
+( echo "copy bootflash:${config_file_csr} running-config" ; sleep 15 ) | ssh -T $branch2_ip
+( echo "wr mem" ; sleep 10 ) | ssh -T $branch2_ip
+( echo "show crypto ike sa" ; sleep 10 ) | ssh -T $branch2_ip
+( echo "show ip int b" ; sleep 10 ) | ssh -T $branch2_ip
+echo "If the previous commands do not work, connect to the router and issue these commands:"
+echo "copy bootflash:${config_file_csr} running-config"
+echo "wr mem"
+
 
 # Hub&spoke location 1
 az vm create -n azure-nva1 -g $rg -l $location1 --image ${publisher}:${offer}:${sku}:${version} --admin-username $username --admin-password "$password" --public-ip-address hub1-pip --public-ip-address-allocation static --vnet-name hub-$location1 --vnet-address-prefix $azure_hub1_prefix --subnet nva --subnet-address-prefix $azure_hub1_subnet --private-ip-address $azure_hub1_nva_ip
