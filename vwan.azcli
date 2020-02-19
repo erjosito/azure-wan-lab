@@ -45,14 +45,14 @@ az network vhub create -n hub1 -g $rg --vwan $vwan -l $location1 --address-prefi
 az network vhub create -n hub2 -g $rg --vwan $vwan -l $location2 --address-prefix $vwan_hub2_prefix
 
 # Branch 1. Parallelizing the vpn gw creation is not recommended
-az vm create -n branch1-nva -g $rg -l $location1 --image ${publisher}:${offer}:${sku}:${version} --admin-username "$username" --admin-password "$password" --public-ip-address branch1-pip --public-ip-address-allocation static --vnet-name branch1 --vnet-address-prefix $branch1_prefix --subnet nva --subnet-address-prefix $branch1_subnet --private-ip-address $branch1_bgp_ip
+az vm create -n branch1-nva -g $rg -l $location1 --image ${publisher}:${offer}:${sku}:${version} --admin-username "$username" --generate-ssh-keys --public-ip-address branch1-pip --public-ip-address-allocation static --vnet-name branch1 --vnet-address-prefix $branch1_prefix --subnet nva --subnet-address-prefix $branch1_subnet --private-ip-address $branch1_bgp_ip
 branch1_ip=$(az network public-ip show -n branch1-pip -g $rg --query ipAddress -o tsv)
 az network vpn-site create -n branch1 -g $rg -l $location1 --virtual-wan $vwan --asn $branch1_asn --bgp-peering-address $branch1_bgp_ip --ip-address $branch1_ip --address-prefixes ${branch1_ip}/32 --device-vendor cisco --device-model csr --link-speed 100
 az network vpn-gateway create -n hubvpn1 -g $rg -l $location1 --vhub hub1 --asn $vwan_hub1_asn
 az network vpn-gateway connection create -n branch1 --gateway-name hubvpn1 -g $rg --remote-vpn-site branch1 --enable-bgp true --protocol-type IKEv2 --shared-key "$password" --connection-bandwidth 100 --routing-weight 10
 
 # Branch 2. Parallelizing the vpn gw creation is not recommended
-az vm create -n branch2-nva -g $rg -l $location2 --image ${publisher}:${offer}:${sku}:${version} --admin-username "$username" --admin-password "$password" --public-ip-address branch2-pip --public-ip-address-allocation static --vnet-name branch2 --vnet-address-prefix $branch2_prefix --subnet nva --subnet-address-prefix $branch2_subnet --private-ip-address $branch2_bgp_ip
+az vm create -n branch2-nva -g $rg -l $location2 --image ${publisher}:${offer}:${sku}:${version} --admin-username "$username" --generate-ssh-keys --public-ip-address branch2-pip --public-ip-address-allocation static --vnet-name branch2 --vnet-address-prefix $branch2_prefix --subnet nva --subnet-address-prefix $branch2_subnet --private-ip-address $branch2_bgp_ip
 branch2_ip=$(az network public-ip show -n branch2-pip -g $rg --query ipAddress -o tsv)
 az network vpn-site create -n branch2 -g $rg -l $location2 --virtual-wan $vwan --asn $branch2_asn --bgp-peering-address $branch2_bgp_ip --ip-address $branch2_ip --address-prefixes ${branch2_ip}/32
 az network vpn-gateway create -n hubvpn2 -g $rg -l $location2 --vhub hub2 --asn $vwan_hub2_asn
@@ -91,6 +91,17 @@ branch2_gw0_bgp_ip=$(cat $file_name | jq -r '.[] | select (.vpnSiteConfiguration
 branch2_gw1_bgp_ip=$(cat $file_name | jq -r '.[] | select (.vpnSiteConfiguration.Name == "'$site'") | .vpnSiteConnections[].gatewayConfiguration.BgpSetting.BgpPeeringAddresses.Instance1')
 echo "Extracted info for $site: Gateway0 $branch2_gw0_pip, $branch2_gw0_bgp_ip. Gateway1 $branch2_gw1_pip, branch2_gw0_bgp_ip. PSK $branch2_psk"
 
+# CSR: SSH pubkey auth -> NOT REQUIRED IF USING --generate-ssh-keys
+# ssh_config_csr='ssh.cfg'
+# ssh_config_local='./ssh.cfg'
+# echo "ip ssh pubkey-chain" > $ssh_config_local
+# echo "  user $username" >> $ssh_config_local
+# echo "    key-string" >> $ssh_config_local
+# cat $HOME/.ssh/id_rsa.pub | cut -d' ' -f 2 | fold -b -w 72  >>$ssh_config_local
+# scp $ssh_config_local ${branch2_ip}:/${ssh_config_csr}
+# ( echo "copy bootflash:${ssh_config_csr} running-config" ; sleep 20 ) | ssh -T $branch2_ip
+# ssh $username@$branch2_ip "sh ver"
+
 # Create CSR config for branch 1
 csr_config_url="https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/csr_config_2tunnels_tokenized.txt"
 config_file_csr='branch1_csr.cfg'
@@ -103,15 +114,20 @@ sed -i "s|\*\*GW0_Public_IP\*\*|${branch1_gw0_pip}|g" $config_file_local
 sed -i "s|\*\*GW1_Public_IP\*\*|${branch1_gw1_pip}|g" $config_file_local
 sed -i "s|\*\*BGP_ID\*\*|${branch1_asn}|g" $config_file_local
 scp $config_file_local ${branch1_ip}:/${config_file_csr}
-( echo "copy bootflash:${config_file_csr} running-config" ; sleep 15 ) | ssh -T $branch1_ip
+ssh $branch1_ip <<EOF
+  config t
+    file prompt quiet
+EOF
+ssh $branch1_ip "copy bootflash:${config_file_csr} running-config"
+# ( echo "copy bootflash:${config_file_csr} running-config" ; sleep 15 ) | ssh -T $branch1_ip
 # ssh -t $username:$password@$branch1_ip "copy bootflash:${config_file_csr} running-config" # Not working on a cisco router
 # sshpass -p $password ssh -t -t $username:$password@$branch1_ip "copy bootflash:${config_file} running-config"  # with sshpass
-( echo "wr mem" ; sleep 10 ) | ssh -T $branch1_ip
-( echo "show crypto ike sa" ; sleep 10 ) | ssh -T $branch1_ip
-( echo "show crypto ipsec sa" ; sleep 10 ) | ssh -T $branch1_ip
-echo "If the previous commands do not work, connect to the router and issue these commands:"
-echo "copy bootflash:${config_file_csr} running-config"
-echo "wr mem"
+# ( echo "wr mem" ; sleep 10 ) | ssh -T $branch1_ip
+# ( echo "show crypto ike sa" ; sleep 10 ) | ssh -T $branch1_ip
+# ( echo "show crypto ipsec sa" ; sleep 10 ) | ssh -T $branch1_ip
+ssh $branch1_ip "wr mem"
+ssh $branch1_ip "sh ip int b"
+
 
 # Create CSR config for branch 2
 csr_config_url="https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/csr_config_2tunnels_tokenized.txt"
@@ -125,30 +141,35 @@ sed -i "s|\*\*GW0_Public_IP\*\*|${branch2_gw0_pip}|g" $config_file_local
 sed -i "s|\*\*GW1_Public_IP\*\*|${branch2_gw1_pip}|g" $config_file_local
 sed -i "s|\*\*BGP_ID\*\*|${branch2_asn}|g" $config_file_local
 scp $config_file_local ${branch2_ip}:/${config_file_csr}
-( echo "copy bootflash:${config_file_csr} running-config" ; sleep 15 ) | ssh -T $branch2_ip
-( echo "wr mem" ; sleep 10 ) | ssh -T $branch2_ip
-( echo "show crypto ike sa" ; sleep 10 ) | ssh -T $branch2_ip
-( echo "show ip int b" ; sleep 10 ) | ssh -T $branch2_ip
-echo "If the previous commands do not work, connect to the router and issue these commands:"
-echo "copy bootflash:${config_file_csr} running-config"
-echo "wr mem"
+ssh $branch2_ip <<EOF
+  config t
+    file prompt quiet
+EOF
+ssh $branch2_ip "copy bootflash:${config_file_csr} running-config"
+# ( echo "copy bootflash:${config_file_csr} running-config" ; sleep 15 ) | ssh -T $branch2_ip
+# ( echo "wr mem" ; sleep 10 ) | ssh -T $branch2_ip
+# ( echo "show crypto ike sa" ; sleep 10 ) | ssh -T $branch2_ip
+# ( echo "show ip int b" ; sleep 10 ) | ssh -T $branch2_ip
+ssh $branch2_ip "wr mem"
+ssh $branch2_ip "sh ip int b"
 
+# Optional:
 # Add a cross link for one of the sites (branch1-hub2, branch2-hub1) -> Not working!
 az network vpn-gateway connection create -n branch2-to-hub1 --gateway-name hubvpn1 -g $rg --remote-vpn-site branch2 --enable-bgp true --protocol-type IKEv2 --shared-key "$password"
-#az network vpn-gateway connection create -n branch1-to-hub2 --gateway-name hubvpn2 -g $rg --remote-vpn-site branch1 --enable-bgp true --protocol-type IKEv2 --shared-key "$password"
-# output:
-# UpdateOnResourceNotAllowedWithApiVersion - Resource /subscriptions/e7da9914-9b05-4891-893c-546cb7b0422e/resourceGroups/vwan/providers/Microsoft.Network/vpnGateways/hubvpn2/vpnConnections/Connection-branch2 cannot be updated using API version 2018-08-01 since it uses the property VpnLinkConnections which has been set using a higher API version 2019-06-01. Please use api version greater than or equal to 2019-06-01 to update the resource.
-
 # Create CSR config for branch 2 with 4 tunnels
 csr_config_url="https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/csr_config_4tunnels_tokenized.txt"
-config_file_csr='branch2_csr.cfg'
-config_file_local='/tmp/branch2_csr.cfg'
+config_file_csr='branch2_csr_4tunnels.cfg'
+config_file_local='/tmp/branch2_csr_4tunnels.cfg'
 wget $csr_config_url -O $config_file_local
 sed -i "s|\*\*PSK\*\*|${branch2_psk}|g" $config_file_local
 sed -i "s|\*\*GW0_Private_IP\*\*|${branch2_gw0_bgp_ip}|g" $config_file_local
 sed -i "s|\*\*GW1_Private_IP\*\*|${branch2_gw1_bgp_ip}|g" $config_file_local
+sed -i "s|\*\*GW2_Private_IP\*\*|${branch1_gw0_bgp_ip}|g" $config_file_local
+sed -i "s|\*\*GW3_Private_IP\*\*|${branch1_gw1_bgp_ip}|g" $config_file_local
 sed -i "s|\*\*GW0_Public_IP\*\*|${branch2_gw0_pip}|g" $config_file_local
 sed -i "s|\*\*GW1_Public_IP\*\*|${branch2_gw1_pip}|g" $config_file_local
+sed -i "s|\*\*GW2_Public_IP\*\*|${branch1_gw0_pip}|g" $config_file_local
+sed -i "s|\*\*GW3_Public_IP\*\*|${branch1_gw1_pip}|g" $config_file_local
 sed -i "s|\*\*BGP_ID\*\*|${branch2_asn}|g" $config_file_local
 scp $config_file_local ${branch2_ip}:/${config_file_csr}
 ( echo "copy bootflash:${config_file_csr} running-config" ; sleep 15 ) | ssh -T $branch2_ip
@@ -161,22 +182,28 @@ echo "wr mem"
 
 
 # Hub&spoke location 1
-az vm create -n azure-nva1 -g $rg -l $location1 --image ${publisher}:${offer}:${sku}:${version} --admin-username $username --admin-password "$password" --public-ip-address hub1-pip --public-ip-address-allocation static --vnet-name hub-$location1 --vnet-address-prefix $azure_hub1_prefix --subnet nva --subnet-address-prefix $azure_hub1_subnet --private-ip-address $azure_hub1_nva_ip
-az vm create -n spoke-vm1 -g $rg -l $location1 --image ubuntuLTS --admin-username $username --admin-password "$password" --public-ip-address spoke1-pip --vnet-name spoke-$location1 --vnet-address-prefix $azure_spoke1_prefix --subnet vm --subnet-address-prefix $azure_spoke1_subnet --private-ip-address $azure_spoke1_vm_ip
+# Add --no-wait to the az vm create commands?
+az vm create -n azure-nva1 -g $rg -l $location1 --image ${publisher}:${offer}:${sku}:${version} --admin-username $username --generate-ssh-keys --public-ip-address hub1-pip --public-ip-address-allocation static --vnet-name hub-$location1 --vnet-address-prefix $azure_hub1_prefix --subnet nva --subnet-address-prefix $azure_hub1_subnet --private-ip-address $azure_hub1_nva_ip
+az vm create -n spoke-vm1 -g $rg -l $location1 --image ubuntuLTS --admin-username $username --generate-ssh-keys --public-ip-address spoke1-pip --vnet-name spoke-$location1 --vnet-address-prefix $azure_spoke1_prefix --subnet vm --subnet-address-prefix $azure_spoke1_subnet --private-ip-address $azure_spoke1_vm_ip
 az network vnet peering create -n spoke2hub -g $rg --vnet-name spoke-$location1 --remote-vnet hub-$location1 --allow-vnet-access --allow-forwarded-traffic
 az network vnet peering create -n hub2spoke -g $rg --vnet-name hub-$location1 --remote-vnet spoke-$location1 --allow-vnet-access --allow-forwarded-traffic
-az network vhub connection create -n tohub -g $rg --vhub-name hub1 --remote-vnet hub-$location1 --remote-vnet-transit true --use-hub-vnet-gateways true
+az network vhub connection create -n tohub -g $rg --vhub-name hub1 --remote-vnet hub-$location1 --remote-vnet-transit true --use-hub-vnet-gateways true --internet-security true
 az network route-table create -n spoke1 -g $rg -l $location1 --disable-bgp-route-propagation
 az network route-table route create -n branch1 -g $rg --route-table-name spoke1 --address-prefix $branch1_prefix --next-hop-type VirtualAppliance --next-hop-ip-address $azure_hub1_nva_ip
 az network vnet subnet update -n vm --vnet-name spoke-$location1 -g $rg --route-table spoke1
-az network vhub route add --vhub-name hub1 -g $rg --address-prefixes $azure_spoke1_prefix --next-hop $azure_hub1_nva_ip
+#az network vhub route add --vhub-name hub1 -g $rg --address-prefixes $azure_spoke1_prefix --next-hop $azure_hub1_nva_ip
 
 # Hub&spoke location 2
-az vm create -n azure-nva2 -g $rg -l $location2 --image ${publisher}:${offer}:${sku}:${version} --admin-username $username --admin-password "$password" --public-ip-address hub2-pip --public-ip-address-allocation static --vnet-name hub-$location2 --vnet-address-prefix $azure_hub2_prefix --subnet nva --subnet-address-prefix $azure_hub2_subnet --private-ip-address $azure_hub2_nva_ip
-az vm create -n spoke-vm2 -g $rg -l $location2 --image ubuntuLTS --admin-username $username --admin-password "$password" --public-ip-address spoke2-pip --vnet-name spoke-$location2 --vnet-address-prefix $azure_spoke2_prefix --subnet vm --subnet-address-prefix $azure_spoke2_subnet --private-ip-address $azure_spoke2_vm_ip
+# Add --no-wait to the az vm create commands?
+az vm create -n azure-nva2 -g $rg -l $location2 --image ${publisher}:${offer}:${sku}:${version} --admin-username $username --generate-ssh-keys --public-ip-address hub2-pip --public-ip-address-allocation static --vnet-name hub-$location2 --vnet-address-prefix $azure_hub2_prefix --subnet nva --subnet-address-prefix $azure_hub2_subnet --private-ip-address $azure_hub2_nva_ip
+az vm create -n spoke-vm2 -g $rg -l $location2 --image ubuntuLTS --admin-username $username --generate-ssh-keys --public-ip-address spoke2-pip --vnet-name spoke-$location2 --vnet-address-prefix $azure_spoke2_prefix --subnet vm --subnet-address-prefix $azure_spoke2_subnet --private-ip-address $azure_spoke2_vm_ip
 az network vnet peering create -n spoke2hub -g $rg --vnet-name spoke-$location2 --remote-vnet hub-$location2 --allow-vnet-access --allow-forwarded-traffic
 az network vnet peering create -n hub2spoke -g $rg --vnet-name hub-$location2 --remote-vnet spoke-$location2 --allow-vnet-access --allow-forwarded-traffic
-az network vhub connection create -n tohub -g $rg --remote-vnet hub-$location2 --vhub-name hub2 --remote-vnet-transit true --use-vnet-gateways true
+az network vhub connection create -n tohub -g $rg --remote-vnet hub-$location2 --vhub-name hub2 --remote-vnet-transit true --use-hub-vnet-gateways true --internet-security true
+az network route-table create -n spoke2 -g $rg -l $location2 --disable-bgp-route-propagation
+az network route-table route create -n branch2 -g $rg --route-table-name spoke2 --address-prefix $branch2_prefix --next-hop-type VirtualAppliance --next-hop-ip-address $azure_hub2_nva_ip
+az network vnet subnet update -n vm --vnet-name spoke-$location2 -g $rg --route-table spoke2
+#az network vhub route add --vhub-name hub2 -g $rg --address-prefixes $azure_spoke2_prefix --next-hop $azure_hub2_nva_ip
 
 # vHub Route tables (???)
 az network vhub route-table create -n vnets --vhub-name hub1 -g $rg -l $location1 --connections All_Vnets --destination-type CIDR --destinations 172.21.11.0/24 --next-hop-type IPAddress --next-hops 172.21.12.10
@@ -186,4 +213,13 @@ az network vhub route-table create -n branches --vhub-name hub1 -g $rg -l $locat
 az network public-ip list -g $rg -o table
 az network nic show-effective-route-table -n spoke-vm1VMNic -g $rg -o table
 az network nic show-effective-route-table -n azure-nva1VMNic -g $rg -o table
-az network nic show-effective-route-table -n spoke1-vm1VMNic -g fwmgr -o table
+az network nic show-effective-route-table -n spoke-vm2VMNic -g $rg -o table
+az network nic show-effective-route-table -n azure-nva2VMNic -g $rg -o table
+az network route-table route list --route-table-name spoke2 -g $rg -o table
+az network vhub connection list --vhub-name hub1 -g $rg -o table
+az network vhub route-table list --vhub-name hub1 -g $rg -o table
+az network vhub route list --vhub-name hub1 -g $rg -o table
+az network vpn-gateway list -g $rg -o table
+az network vpn-gateway connection list --gateway-name hubvpn1 -g $rg -o table
+ssh $username@$branch1_ip "sh ip bgp"
+ssh $username@$branch1_ip "sh ip route"
