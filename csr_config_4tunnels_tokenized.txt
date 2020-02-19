@@ -18,11 +18,11 @@ crypto ikev2 keyring azure-keyring
     pre-shared-key **PSK**
     exit
   peer **GW2_Public_IP**
-    address **GW0_Public_IP**
+    address **GW2_Public_IP**
     pre-shared-key **PSK**
     exit
   peer **GW3_Public_IP**
-    address **GW1_Public_IP**
+    address **GW3_Public_IP**
     pre-shared-key **PSK**
     exit
   exit
