@@ -109,7 +109,6 @@ az network firewall policy rule-collection-group collection add-filter-collectio
 az network firewall update -n vhub1-fw -g $rg --firewall-policy $fw_policy_id
 az network firewall update -n vhub2-fw -g $rg --firewall-policy $fw_policy_id
 
-
 # If VPN gateways are completely deployed, delete them (this will soon disappear, when the workaround to deploy RS is not needed)
 vpn1_state=$(az network vpn-gateway show -n hubvpn1 -g $rg --query 'provisioningState' -o tsv)
 if [[ $vpn1_state == "Succeeded" ]]
@@ -126,7 +125,7 @@ else
   echo "VPN Gateway cannot be deleted, still in state $vpn2_state"
 fi
 
-# Access to spoke vms
+# Access to spoke VMs
 spoke1_pip_address=$(az network public-ip show -n spoke1-pip -g $rg --query 'ipAddress' -o tsv)
 spoke2_pip_address=$(az network public-ip show -n spoke2-pip -g $rg --query 'ipAddress' -o tsv)
 ssh-keyscan -H $spoke1_pip_address >> ~/.ssh/known_hosts
@@ -143,10 +142,6 @@ ssh $spoke1_pip_address "curl -s4 http://ifconfig.co"  # HTTP not allowed throug
 ssh $spoke1_pip_address "curl -s4 https://ifconfig.co" # HTTPS to ifconfig.co allowed through the AzFw
 ssh $spoke2_pip_address "curl -s4 http://ifconfig.co"  # HTTP not allowed through the AzFw
 ssh $spoke2_pip_address "curl -s4 https://ifconfig.co" # HTTPS to ifconfig.co allowed through the AzFw
-
-# vHub Route tables (???)
-az network vhub route-table create -n vnets --vhub-name hub1 -g $rg -l $location1 --connections All_Vnets --destination-type CIDR --destinations 172.21.11.0/24 --next-hop-type IPAddress --next-hops 172.21.12.10
-az network vhub route-table create -n branches --vhub-name hub1 -g $rg -l $location1 --connections All_Branches --destination-type CIDR --destinations 172.21.11.0/24 --next-hop-type IPAddress --next-hops 172.21.12.10
 
 # Troubleshooting - routing
 az network public-ip list -g $rg -o table
