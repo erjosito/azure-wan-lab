@@ -283,7 +283,7 @@ router bgp 65101
 ip route 192.168.0.4 255.255.255.255 Tunnel0
 ```
 
-Do not forget to save your configuration! If you want to use two tunnels, you can find a sample config [here](csr_config_2tunnels.txt), that you can take and replace the values of the public/private addresses of the VPN gateways accordingly.
+Do not forget to save your configuration! You will find a cheat sheet showing how to enter the configuration mode of the NVA and how to save the configuration [here](https://microsoft.github.io/WhatTheHack/041-VirtualWAN/Student/Resources/csr_cheatsheet.html). If you want to use two tunnels, you can find a sample config [here](csr_config_2tunnels.txt), that you can take and replace the values of the public/private addresses of the VPN gateways accordingly.
 
 ### Deploy configuration programmatically
 
