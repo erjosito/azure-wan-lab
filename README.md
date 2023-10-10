@@ -52,13 +52,13 @@ PS Azure:\> New-AzResourceGroupDeployment -ResourceGroupName $rg `
 If you prefer to use the Azure CLI on a Linux prompt you can use this syntax: 
 
 ```
-az group deployment create -g vwantest --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vwan_quickstart.json --parameters '{"nvaPwd":{"value":"yoursupersecretpassword"}}'
+az deployment group create -g vwantest --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vwan_quickstart.json --parameters '{"nvaPwd":{"value":"yoursupersecretpassword"}}'
 ```
 
 For commands on Windows you cannot use single quotes, so you need to escape the double quotes in your parameter declaration:
 
 ```
-az group deployment create -g vwantest --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vwan_quickstart.json --parameters "{\"nvaPwd\":{\"value\":\"yoursupersecretpassword\"}}"
+az deployment group create -g vwantest --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vwan_quickstart.json --parameters "{\"nvaPwd\":{\"value\":\"yoursupersecretpassword\"}}"
 ```
 
 The default NVA type is a Linux Ubuntu VM with Quagga (for BGP) and StrongSwan (for VPN). An initial StrongSwan configuration is provided, but you will have to update it with the right parameters corresponding to your VPN site (public IP address, BGP peering IP address, Pre-Shared-Key).
@@ -66,6 +66,11 @@ The default NVA type is a Linux Ubuntu VM with Quagga (for BGP) and StrongSwan (
 ### Option 2: Cisco CSR 1000v VPN device on-premises
 
 If you want to deploy a Cisco CSR 1000v router as NVA to simulate on-premises devices (you do not need any license, since all functionality is active in eval mode, only bandwidth is limited), you can use the parameter nvaType like this:
+
+
+```
+ az vm image terms accept --urn cisco:cisco-csr-1000v:16_9-byol:latest
+```
 
 ```
 Azure:/
@@ -80,7 +85,7 @@ PS Azure:\> New-AzResourceGroupDeployment -ResourceGroupName $rg `
 or from CLI (Linux):
 
 ```
-az group deployment create -g vwantest --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vwan_quickstart.json --parameters '{"nvaPwd":{"value":"yoursupersecretpassword"}, "nvaType":{"value":"cisco_csr"}}'
+az deployment group create -g vwantest --template-uri https://raw.githubusercontent.com/erjosito/azure-wan-lab/master/vwan_quickstart.json --parameters '{"nvaPwd":{"value":"yoursupersecretpassword"}, "nvaType":{"value":"cisco_csr"}}'
 ```
 
 The password you provided in the template will be used for authentication in the NVA, for the user `lab-user` (so it need to be compliant with the VM password policy: 12-character long, numbers, letters, special sign), as well as Pre-Shared Key for VPN. In a production environment you would probably separate both (the ARM template allows to do that).
